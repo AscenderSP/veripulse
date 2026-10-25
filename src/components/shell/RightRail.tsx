@@ -431,13 +431,15 @@ function CrawlerMonitor({ stats }: { stats: Stats | null }) {
       </h3>
       <div className="flex items-center gap-2 text-xs text-content-secondary">
         <span className={`h-2 w-2 rounded-full ${healthy ? 'animate-pulse-dot bg-brand-emerald glow-emerald' : 'bg-brand-amber'}`} />
-        {!mounted
-          ? ' '
-          : last === null
-            ? 'No runs recorded yet'
-            : healthy
-              ? `Running · last sweep ${timeAgo(stats!.last_crawl_at!)} ago${nextIn !== null ? ` · next in ${nextIn} min` : ''}`
-              : `Stale · last sweep ${timeAgo(stats!.last_crawl_at!)} ago`}
+        <span suppressHydrationWarning>
+          {!mounted
+            ? 'Running · live feeds healthy'
+            : last === null
+              ? 'No runs recorded yet'
+              : healthy
+                ? `Running · last sweep ${timeAgo(stats!.last_crawl_at!)} ago${nextIn !== null ? ` · next in ${nextIn} min` : ''}`
+                : `Stale · last sweep ${timeAgo(stats!.last_crawl_at!)} ago`}
+        </span>
       </div>
       {stats?.last_crawl_sources && (
         <div className="mt-3 space-y-2 text-[11px] text-content-muted">

@@ -31,6 +31,7 @@ import {
   AtSign,
   Globe,
   Smartphone,
+  ArrowLeft,
 } from 'lucide-react';
 import { Button, Card } from '@/components/ui/primitives';
 import { cn, formatINR, timeAgo } from '@/lib/utils';
@@ -97,6 +98,67 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
   // If user is logged out, render the Sign Up / Login onboarding hub
   if (!profile) {
     return <LoggedOutHub onSignInPreset={signInPreset} onSignUp={signUp} onSignInOtp={signInWithOtpMock} />;
+  }
+
+  // ── Full Page Intercepts (News Hub Pattern) ─────────────────────────────
+  if (editOpen) {
+    return (
+      <EditProfilePage
+        profile={profile}
+        onClose={() => setEditOpen(false)}
+        onSave={(patch) => {
+          updateProfile(patch);
+          setEditOpen(false);
+          showToast('Profile updated successfully!');
+        }}
+        lang={lang}
+      />
+    );
+  }
+
+  if (socialEditOpen) {
+    return (
+      <EditSocialLinksPage
+        links={profile.social_links ?? {}}
+        onClose={() => setSocialEditOpen(false)}
+        onSave={(socials) => {
+          updateProfile({ social_links: socials });
+          setSocialEditOpen(false);
+          showToast('Social links updated!');
+        }}
+        lang={lang}
+      />
+    );
+  }
+
+  if (switchAccountOpen) {
+    return (
+      <SwitchAccountPage
+        currentProfileId={profile.id}
+        onClose={() => setSwitchAccountOpen(false)}
+        onSelect={(preset) => {
+          signInPreset(preset);
+          setSwitchAccountOpen(false);
+          showToast(`Switched account to @${preset.username}`);
+        }}
+        lang={lang}
+      />
+    );
+  }
+
+  if (deleteOpen) {
+    return (
+      <DeleteAccountPage
+        username={profile.username}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          await deleteAccount();
+          setDeleteOpen(false);
+          showToast('Account permanently deleted.');
+        }}
+        lang={lang}
+      />
+    );
   }
 
   return (
@@ -353,58 +415,6 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
           onSignOut={signOut}
           onOpenDelete={() => setDeleteOpen(true)}
           onSwitchAccount={() => setSwitchAccountOpen(true)}
-        />
-      )}
-
-      {/* ── Edit Profile Modal ── */}
-      {editOpen && (
-        <EditProfileModal
-          profile={profile}
-          onClose={() => setEditOpen(false)}
-          onSave={(patch) => {
-            updateProfile(patch);
-            setEditOpen(false);
-            showToast('Profile updated successfully!');
-          }}
-        />
-      )}
-
-      {/* ── Social Links Edit Modal ── */}
-      {socialEditOpen && (
-        <EditSocialLinksModal
-          links={profile.social_links ?? {}}
-          onClose={() => setSocialEditOpen(false)}
-          onSave={(socials) => {
-            updateProfile({ social_links: socials });
-            setSocialEditOpen(false);
-            showToast('Social links updated!');
-          }}
-        />
-      )}
-
-      {/* ── Switch Account Modal ── */}
-      {switchAccountOpen && (
-        <SwitchAccountModal
-          currentProfileId={profile.id}
-          onClose={() => setSwitchAccountOpen(false)}
-          onSelect={(preset) => {
-            signInPreset(preset);
-            setSwitchAccountOpen(false);
-            showToast(`Switched account to @${preset.username}`);
-          }}
-        />
-      )}
-
-      {/* ── Delete Account Confirmation Modal ── */}
-      {deleteOpen && (
-        <DeleteAccountModal
-          username={profile.username}
-          onClose={() => setDeleteOpen(false)}
-          onConfirm={async () => {
-            await deleteAccount();
-            setDeleteOpen(false);
-            showToast('Account permanently deleted.');
-          }}
         />
       )}
     </div>
@@ -1524,17 +1534,19 @@ function LoggedOutHub({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Modals
+// Full-Page Views (Consistent with News Hub)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EditProfileModal({
+function EditProfilePage({
   profile,
   onClose,
   onSave,
+  lang = 'en',
 }: {
   profile: Profile;
   onClose: () => void;
   onSave: (patch: Partial<Profile>) => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   const [name, setName] = useState(profile.full_name ?? '');
   const [bio, setBio] = useState(profile.bio ?? '');
@@ -1552,60 +1564,71 @@ function EditProfileModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="sheet-overlay absolute inset-0" onClick={onClose} />
-      <div className="modal-content relative z-10 w-full max-w-md p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-content-primary">Edit Profile</h3>
-          <button onClick={onClose} className="press-effect flex h-7 w-7 items-center justify-center rounded-full glass text-content-muted hover:text-content-primary">
-            <X size={14} />
-          </button>
+    <div className="space-y-5 section-enter">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+        <button
+          onClick={onClose}
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
+        >
+          <ArrowLeft size={18} />
+          <span>{lang === 'bn' ? 'প্রোফাইলে ফিরে যান' : lang === 'hi' ? 'प्रोफ़ाइल पर वापस जाएं' : 'Back to Profile'}</span>
+        </button>
+      </div>
+
+      <Card className="p-5 sm:p-6 space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-xl font-bold text-content-primary">Edit Profile</h2>
+          <p className="text-xs text-content-muted mt-0.5">
+            Update your public display identity, regional locality, and payout handle.
+          </p>
         </div>
 
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="text-[11px] font-semibold text-content-secondary">Display Name</label>
+            <label className="text-xs font-semibold text-content-secondary">Display Name</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1.5 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-content-secondary">City / Region</label>
+            <label className="text-xs font-semibold text-content-secondary">City / Region</label>
             <input
               type="text"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1.5 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-content-secondary">Bio</label>
+            <label className="text-xs font-semibold text-content-secondary">Bio / Expertise</label>
             <textarea
               rows={3}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1.5 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none leading-relaxed"
             />
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-content-secondary">UPI ID for Payouts</label>
+            <label className="text-xs font-semibold text-content-secondary">UPI ID for Payouts</label>
             <input
               type="text"
               value={upi}
               onChange={(e) => setUpi(e.target.value)}
               placeholder="e.g. name@okhdfc"
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs font-mono text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1.5 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-xs font-mono text-content-primary focus:border-brand-emerald focus:outline-none"
             />
+            <p className="mt-1 text-[11px] text-content-muted">Earnings and dividend grants will be credited to this VPA address.</p>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
             <Button variant="ghost" type="button" onClick={onClose} className="px-3 py-1.5 text-xs">
               Cancel
             </Button>
@@ -1614,19 +1637,21 @@ function EditProfileModal({
             </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }
 
-function EditSocialLinksModal({
+function EditSocialLinksPage({
   links,
   onClose,
   onSave,
+  lang = 'en',
 }: {
   links: SocialLinks;
   onClose: () => void;
   onSave: (links: SocialLinks) => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   const [twitter, setTwitter] = useState(links.twitter ?? '');
   const [instagram, setInstagram] = useState(links.instagram ?? '');
@@ -1648,84 +1673,94 @@ function EditSocialLinksModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="sheet-overlay absolute inset-0" onClick={onClose} />
-      <div className="modal-content relative z-10 w-full max-w-md p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-content-primary">Edit Social & Contact Links</h3>
-          <button onClick={onClose} className="press-effect flex h-7 w-7 items-center justify-center rounded-full glass text-content-muted hover:text-content-primary">
-            <X size={14} />
-          </button>
+    <div className="space-y-5 section-enter">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+        <button
+          onClick={onClose}
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
+        >
+          <ArrowLeft size={18} />
+          <span>{lang === 'bn' ? 'প্রোফাইলে ফিরে যান' : lang === 'hi' ? 'प्रोफ़ाइल पर वापस जाएं' : 'Back to Profile'}</span>
+        </button>
+      </div>
+
+      <Card className="p-5 sm:p-6 space-y-4 max-w-2xl">
+        <div>
+          <h2 className="text-xl font-bold text-content-primary">Edit Social & Contact Links</h2>
+          <p className="text-xs text-content-muted mt-0.5">
+            Connect your presence across networks to build trusted cross-platform journalism verification.
+          </p>
         </div>
 
-        <form onSubmit={submit} className="space-y-2.5 text-xs">
+        <form onSubmit={submit} className="space-y-3 text-xs">
           <div>
-            <label className="text-[11px] text-content-muted">X / Twitter Handle</label>
+            <label className="text-[11px] font-semibold text-content-muted">X / Twitter Handle</label>
             <input
               type="text"
               value={twitter}
               onChange={(e) => setTwitter(e.target.value)}
               placeholder="@handle"
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] text-content-muted">Instagram Handle</label>
+            <label className="text-[11px] font-semibold text-content-muted">Instagram Handle</label>
             <input
               type="text"
               value={instagram}
               onChange={(e) => setInstagram(e.target.value)}
               placeholder="@handle"
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] text-content-muted">YouTube Channel</label>
+            <label className="text-[11px] font-semibold text-content-muted">YouTube Channel</label>
             <input
               type="text"
               value={youtube}
               onChange={(e) => setYoutube(e.target.value)}
               placeholder="@channel"
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] text-content-muted">LinkedIn Profile</label>
+            <label className="text-[11px] font-semibold text-content-muted">LinkedIn Profile</label>
             <input
               type="text"
               value={linkedin}
               onChange={(e) => setLinkedin(e.target.value)}
               placeholder="in/username"
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] text-content-muted">WhatsApp / Phone Contact</label>
+            <label className="text-[11px] font-semibold text-content-muted">WhatsApp / Phone Contact</label>
             <input
               type="text"
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="+91..."
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-[11px] text-content-muted">Website / Blog URL</label>
+            <label className="text-[11px] font-semibold text-content-muted">Website / Blog URL</label>
             <input
               type="text"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="https://..."
-              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
+              className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-content-primary focus:border-brand-emerald focus:outline-none"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
             <Button variant="ghost" type="button" onClick={onClose} className="px-3 py-1.5 text-xs">
               Cancel
             </Button>
@@ -1734,32 +1769,44 @@ function EditSocialLinksModal({
             </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }
 
-function SwitchAccountModal({
+function SwitchAccountPage({
   currentProfileId,
   onClose,
   onSelect,
+  lang = 'en',
 }: {
   currentProfileId: string;
   onClose: () => void;
   onSelect: (preset: Profile) => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="sheet-overlay absolute inset-0" onClick={onClose} />
-      <div className="modal-content relative z-10 w-full max-w-sm p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-content-primary">Switch Account</h3>
-          <button onClick={onClose} className="press-effect flex h-7 w-7 items-center justify-center rounded-full glass text-content-muted hover:text-content-primary">
-            <X size={14} />
-          </button>
+    <div className="space-y-5 section-enter">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+        <button
+          onClick={onClose}
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
+        >
+          <ArrowLeft size={18} />
+          <span>{lang === 'bn' ? 'প্রোফাইলে ফিরে যান' : lang === 'hi' ? 'प्रोफ़ाइल पर वापस जाएं' : 'Back to Profile'}</span>
+        </button>
+      </div>
+
+      <Card className="p-5 sm:p-6 space-y-4 max-w-lg">
+        <div>
+          <h2 className="text-xl font-bold text-content-primary">Switch Preset Account</h2>
+          <p className="text-xs text-content-muted mt-0.5">
+            Select any simulated citizen or investigative journalist persona to test permissions and features.
+          </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {DEMO_PRESET_PROFILES.map((p) => {
             const isCurrent = p.id === currentProfileId;
             return (
@@ -1767,60 +1814,72 @@ function SwitchAccountModal({
                 key={p.id}
                 onClick={() => onSelect(p)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-button border p-2.5 text-left transition-colors',
+                  'flex w-full items-center gap-3.5 rounded-button border p-3 text-left transition-all',
                   isCurrent
-                    ? 'border-brand-emerald bg-[var(--brand-emerald-glow)]'
-                    : 'border-[var(--border-subtle)] bg-bg-primary hover:bg-bg-elevated',
+                    ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] shadow-sm'
+                    : 'border-[var(--border-subtle)] bg-bg-surface hover:bg-bg-elevated hover:border-[var(--border-strong)]',
                 )}
               >
                 <img
                   src={p.avatar_url}
                   alt={p.full_name ?? p.username}
-                  className="h-10 w-10 rounded-full object-cover"
+                  className="h-11 w-11 rounded-full object-cover border border-[var(--border-subtle)]"
                 />
                 <div className="min-w-0 flex-1 truncate">
                   <div className="flex items-center justify-between">
                     <span className="truncate text-xs font-bold text-content-primary">{p.full_name}</span>
                     {isCurrent && (
-                      <span className="text-[10px] font-bold text-brand-emerald">Active</span>
+                      <span className="text-[10px] font-bold text-brand-emerald bg-brand-emerald/10 px-2 py-0.5 rounded-pill">Active</span>
                     )}
                   </div>
                   <div className="truncate text-[11px] text-content-muted">
-                    @{p.username} • Trust: {p.trust_score}
+                    @{p.username} • Trust: {p.trust_score} • {p.badge ?? p.tier}
                   </div>
                 </div>
               </button>
             );
           })}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
-function DeleteAccountModal({
+function DeleteAccountPage({
   username,
   onClose,
   onConfirm,
+  lang = 'en',
 }: {
   username: string;
   onClose: () => void;
   onConfirm: () => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   const [confirmInput, setConfirmInput] = useState('');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="sheet-overlay absolute inset-0" onClick={onClose} />
-      <div className="modal-content relative z-10 w-full max-w-sm p-5 space-y-4" style={{ border: '1px solid rgba(251,113,133,0.2)' }}>
+    <div className="space-y-5 section-enter">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+        <button
+          onClick={onClose}
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
+        >
+          <ArrowLeft size={18} />
+          <span>{lang === 'bn' ? 'প্রোফাইলে ফিরে যান' : lang === 'hi' ? 'प्रोफ़ाइल पर वापस जाएं' : 'Back to Profile'}</span>
+        </button>
+      </div>
+
+      <Card className="p-5 sm:p-6 space-y-4 max-w-lg border-brand-rose/40">
         <div className="flex items-center gap-2 text-brand-rose">
-          <AlertTriangle size={20} />
-          <h3 className="text-sm font-bold">Permanently Delete Account?</h3>
+          <AlertTriangle size={22} />
+          <h2 className="text-xl font-bold">Permanently Delete Account?</h2>
         </div>
 
         <p className="text-xs text-content-muted leading-relaxed">
           This action <span className="font-bold text-brand-rose">cannot be undone</span>. All your
-          verified identity hashes, wallet balance, and vote reputation will be wiped.
+          verified identity hashes, wallet balance, and vote reputation will be wiped from this client instance.
         </p>
 
         <div>
@@ -1832,11 +1891,11 @@ function DeleteAccountModal({
             value={confirmInput}
             onChange={(e) => setConfirmInput(e.target.value)}
             placeholder="DELETE"
-            className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs font-mono text-content-primary focus:border-brand-rose focus:outline-none"
+            className="mt-1.5 w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface px-3 py-2 text-xs font-mono text-content-primary focus:border-brand-rose focus:outline-none"
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
           <Button variant="ghost" onClick={onClose} className="px-3 py-1.5 text-xs">
             Cancel
           </Button>
@@ -1849,7 +1908,7 @@ function DeleteAccountModal({
             Delete Account
           </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Search,
   SlidersHorizontal,
@@ -44,6 +44,7 @@ import {
   History,
   Layers,
   ThumbsUp,
+  ArrowLeft,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import { DEMO_PRODUCTS, DEMO_HEAD_TO_HEAD_BATTLES } from '@/lib/demoData';
@@ -176,6 +177,7 @@ export function ProductMatrix() {
   const [activeDecayProductId, setActiveDecayProductId] = useState<string>('realme-12-plus-5g');
   const [activeAskProductId, setActiveAskProductId] = useState<string>('realme-12-plus-5g');
   const [priceAlertToast, setPriceAlertToast] = useState<string | null>(null);
+  const [activeTooltipBadge, setActiveTooltipBadge] = useState<string | null>(null);
 
   function togglePriceAlert(productId: string, productName: string) {
     setTrackedPriceIds((prev) => {
@@ -579,6 +581,52 @@ export function ProductMatrix() {
     selectedPriceRange !== 'all' ||
     selectedOption !== 'all' ||
     searchQuery.trim().length > 0;
+
+  // ── Full Page Drill-Down & Creation Views (Consistent with News Hub) ──
+  if (reviewProduct) {
+    return (
+      <ProductReviewPage
+        product={reviewProduct}
+        onClose={() => setReviewProduct(null)}
+        onSubmit={(review) => {
+          handleAddReview(reviewProduct.id, review);
+          setReviewProduct(null);
+        }}
+        currentUsername={profile?.username ?? user?.email ?? 'verified_citizen'}
+        lang={lang}
+      />
+    );
+  }
+
+  if (isCompareModalOpen && compareIds.length > 0) {
+    return (
+      <ProductComparePage
+        productIds={compareIds}
+        allProducts={products}
+        onClose={() => setIsCompareModalOpen(false)}
+        onRemove={toggleCompare}
+        onBuy={buy}
+        lang={lang}
+      />
+    );
+  }
+
+  if (detailProduct) {
+    return (
+      <ProductDrillDownPage
+        product={detailProduct}
+        allProducts={products}
+        onSelectProduct={(p) => setDetailProduct(p)}
+        onClose={() => setDetailProduct(null)}
+        onOpenReview={() => {
+          setReviewProduct(detailProduct);
+          setDetailProduct(null);
+        }}
+        onBuy={buy}
+        lang={lang}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -1388,6 +1436,7 @@ export function ProductMatrix() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {filteredProducts.map((p) => {
           const isComparing = compareIds.includes(p.id);
+          const isCardActive = activeTooltipBadge !== null && activeTooltipBadge.startsWith(p.id);
           const scores = p.scores ?? {
             camera: 7.5,
             battery: 8.0,
@@ -1399,9 +1448,11 @@ export function ProductMatrix() {
           return (
             <Card
               key={p.id}
+              style={{ zIndex: isCardActive ? 40 : 1 }}
               className={cn(
-                'flex flex-col justify-between overflow-hidden p-4 transition-all duration-200 hover:border-[var(--border-strong)]',
+                'relative flex flex-col justify-between overflow-visible p-4 transition-all duration-200 hover:border-[var(--border-strong)]',
                 isComparing && 'border-brand-emerald shadow-sm',
+                isCardActive && 'ring-1 ring-brand-emerald/40',
               )}
             >
               <div>
@@ -1464,52 +1515,142 @@ export function ProductMatrix() {
                   </div>
                 )}
 
-                {/* Transparency & Longevity Badges Strip */}
+                {/* Transparency & Longevity Badges Strip (Interactive Tap Tooltips) */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px]">
                   {/* Reality Gap Pill */}
                   {p.realityGapScore !== undefined && (
-                    <span
-                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold border ${
-                        p.realityGapScore <= 12
-                          ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald'
-                          : p.realityGapScore <= 22
-                          ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky'
-                          : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose'
-                      }`}
-                    >
-                      🎯 {p.realityGapScore}% Gap
-                    </span>
+                    <BadgeTooltip
+                      align="left"
+                      isOpen={activeTooltipBadge === `${p.id}-gap`}
+                      onToggle={(open) => setActiveTooltipBadge(open ? `${p.id}-gap` : null)}
+                      icon={<span className="text-xs">🎯</span>}
+                      title={lang === 'bn' ? 'মার্কেটিং ও বাস্তবের ব্যবধান' : lang === 'hi' ? 'मार्केटिंग रियलिटी गैप' : 'Marketing Reality Gap'}
+                      description={
+                        lang === 'bn'
+                          ? `নির্মাতার বিজ্ঞাপনের দাবি এবং যাচাইকৃত মালিকদের পরিমাপ করা বাস্তব টেলিমেট্রির মধ্যে ${p.realityGapScore}% অমিল। কম শতাংশ ভালো (≤১২% চমৎকার, >২২% অতিরঞ্জিত দাবি)।`
+                          : lang === 'hi'
+                          ? `निर्माता के विज्ञापन दावों और सत्यापित मालिकों से मापी गई वास्तविक टेलीमेट्री के बीच ${p.realityGapScore}% का अंतर। कम प्रतिशत बेहतर है (≤12% उत्कृष्ट, >22% अधिक अंतर)।`
+                          : `Measures the variance between manufacturer advertising claims (battery life, peak speed, endurance) and real telemetry measured from verified owners. Lower is better (≤12% is best-in-class, >22% indicates inflated claims).`
+                      }
+                      benchmarkLabel="Benchmark"
+                      benchmarkValue={p.realityGapScore <= 12 ? '≤12% Best-in-Class' : p.realityGapScore <= 22 ? '13–22% Typical' : '>22% Disputed'}
+                      badge={
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold border transition-colors ${
+                            p.realityGapScore <= 12
+                              ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald hover:bg-brand-emerald/25'
+                              : p.realityGapScore <= 22
+                              ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky hover:bg-brand-sky/25'
+                              : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose hover:bg-brand-rose/25'
+                          }`}
+                        >
+                          🎯 {p.realityGapScore}% Gap
+                        </span>
+                      }
+                    />
                   )}
 
                   {/* Fair Price Status */}
                   {p.fairPriceStatus && (
-                    <span
-                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold border ${
+                    <BadgeTooltip
+                      align="left"
+                      isOpen={activeTooltipBadge === `${p.id}-price`}
+                      onToggle={(open) => setActiveTooltipBadge(open ? `${p.id}-price` : null)}
+                      icon={<span className="text-xs">{p.fairPriceStatus === 'steal_deal' ? '🟢' : p.fairPriceStatus === 'fair_market' ? '🔵' : '🔴'}</span>}
+                      title={
                         p.fairPriceStatus === 'steal_deal'
-                          ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald'
+                          ? (lang === 'bn' ? 'সেরা ডিল (Steal Deal)' : lang === 'hi' ? 'शानदार सौदा (Steal Deal)' : 'Fair Price: Steal Deal')
                           : p.fairPriceStatus === 'fair_market'
-                          ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky'
-                          : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose'
-                      }`}
-                    >
-                      {p.fairPriceStatus === 'steal_deal' && `🟢 ${t('stealDeal', lang)}`}
-                      {p.fairPriceStatus === 'fair_market' && `🔵 ${t('fairMarket', lang)}`}
-                      {p.fairPriceStatus === 'overpriced' && `🔴 ${t('overpriced', lang)}`}
-                    </span>
+                          ? (lang === 'bn' ? 'ন্যায্য বাজার মূল্য' : lang === 'hi' ? 'उचित बाज़ार मूल्य' : 'Fair Market Price')
+                          : (lang === 'bn' ? 'অতিরিক্ত দাম (অপেক্ষা করুন)' : lang === 'hi' ? 'अधिक कीमत (इंतज़ार करें)' : 'Overpriced (Wait for Sale)')
+                      }
+                      description={
+                        p.fairPriceStatus === 'steal_deal'
+                          ? (lang === 'bn'
+                              ? 'বর্তমান বিক্রয় মূল্য শীর্ষ ভারতীয় স্টোরগুলোর বিগত ৯০ দিনের সর্বনিম্ন মূল্যের সমান বা কম। সেরা সাশ্রয়ী ডিল।'
+                              : lang === 'hi'
+                              ? 'मौजूदा बिक्री मूल्य प्रमुख भारतीय स्टोर्स के 90-दिन के न्यूनतम ऐतिहासिक मूल्य के बराबर या उससे कम है। अत्यधिक किफायती सौदा।'
+                              : 'Selling at or below the 90-day verified lowest price across top Indian retailers (Amazon, Flipkart, brand store). Exceptional value-to-performance.')
+                          : p.fairPriceStatus === 'fair_market'
+                          ? (lang === 'bn'
+                              ? 'বর্তমান মূল্য বিগত ৯০ দিনের যাচাইকৃত বাজার দরের স্বাভাবিক গড়ের সাথে সংগতিপূর্ণ।'
+                              : lang === 'hi'
+                              ? 'मौजूदा कीमत पिछले 90 दिनों के सत्यापित सामान्य बाज़ार औसत के अनुरूप है।'
+                              : 'Current price aligns with the 90-day verified median historical price baseline.')
+                          : (lang === 'bn'
+                              ? 'বর্তমান মূল্য ঐতিহাসিক গড়ের চেয়ে বেশি। উৎসবের অফার বা পরবর্তী মূল্যহ্রাসের জন্য অপেক্ষা করার পরামর্শ দেওয়া হচ্ছে।'
+                              : lang === 'hi'
+                              ? 'मौजूदा कीमत ऐतिहासिक औसत से अधिक है। आगामी सेल या मूल्य गिरावट का इंतज़ार करने की सलाह दी जाती है।'
+                              : 'Currently priced above historical averages. Consider waiting for an upcoming festive sale or refresh discount.')
+                      }
+                      benchmarkLabel="Retail History"
+                      benchmarkValue={p.fairPriceStatus === 'steal_deal' ? '90-Day Low' : p.fairPriceStatus === 'fair_market' ? 'Median Price' : 'Above Average'}
+                      badge={
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold border transition-colors ${
+                            p.fairPriceStatus === 'steal_deal'
+                              ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald hover:bg-brand-emerald/25'
+                              : p.fairPriceStatus === 'fair_market'
+                              ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky hover:bg-brand-sky/25'
+                              : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose hover:bg-brand-rose/25'
+                          }`}
+                        >
+                          {p.fairPriceStatus === 'steal_deal' && `🟢 ${t('stealDeal', lang)}`}
+                          {p.fairPriceStatus === 'fair_market' && `🔵 ${t('fairMarket', lang)}`}
+                          {p.fairPriceStatus === 'overpriced' && `🔴 ${t('overpriced', lang)}`}
+                        </span>
+                      }
+                    />
                   )}
 
                   {/* Reliability Grade */}
                   {p.reliabilityGrade && (
-                    <span className="rounded bg-bg-surface border border-[var(--border-subtle)] px-1.5 py-0.5 font-semibold text-content-primary">
-                      🏆 Grade {p.reliabilityGrade}
-                    </span>
+                    <BadgeTooltip
+                      align="right"
+                      isOpen={activeTooltipBadge === `${p.id}-grade`}
+                      onToggle={(open) => setActiveTooltipBadge(open ? `${p.id}-grade` : null)}
+                      icon={<span className="text-xs">🏆</span>}
+                      title={lang === 'bn' ? `স্থায়িত্ব গ্রেড ${p.reliabilityGrade}` : lang === 'hi' ? `विश्वसनीयता ग्रेड ${p.reliabilityGrade}` : `Reliability & Longevity: Grade ${p.reliabilityGrade}`}
+                      description={
+                        lang === 'bn'
+                          ? `১২-২৪+ মাস ব্যবহারকারী মালিকদের দীর্ঘমেয়াদী চেক-ইন তথ্যের ভিত্তিতে প্রস্তুত। ব্যাটারি ক্ষয়, হার্ডওয়্যার স্থায়িত্ব ও যন্ত্রাংশের সহজলভ্যতায় গ্রেড ${p.reliabilityGrade} শীর্ষমানের স্থায়িত্ব নির্দেশ করে।`
+                          : lang === 'hi'
+                          ? `12–24+ महीने के मालिक चेक-इन के आधार पर निर्धारित। बैटरी क्षय, हार्डवेयर स्थायित्व और स्पेयर पार्ट्स की उपलब्धता में ग्रेड ${p.reliabilityGrade} शीर्ष स्तर की दीर्घायु दर्शाता है।`
+                          : `Computed from verified 12–24+ month owner check-ins evaluating battery health retention, motherboard integrity, parts availability, and repairability. Grade ${p.reliabilityGrade} indicates top-tier long-term endurance.`
+                      }
+                      benchmarkLabel="Longevity Score"
+                      benchmarkValue={p.reliabilityGrade === 'A+' ? '9.5+ / 10 Minimal Decay' : p.reliabilityGrade === 'A' ? '8.5–9.4 / 10 Solid' : 'Moderate Decay'}
+                      badge={
+                        <span className="rounded bg-bg-surface border border-[var(--border-subtle)] px-1.5 py-0.5 font-semibold text-content-primary hover:border-brand-emerald/50 transition-colors">
+                          🏆 Grade {p.reliabilityGrade}
+                        </span>
+                      }
+                    />
                   )}
 
                   {/* 1-Yr Resale Retention */}
                   {p.resaleRetentionPercent !== undefined && (
-                    <span className="rounded bg-bg-surface border border-[var(--border-subtle)] px-1.5 py-0.5 text-content-secondary">
-                      📈 {p.resaleRetentionPercent}% Resale
-                    </span>
+                    <BadgeTooltip
+                      align="right"
+                      isOpen={activeTooltipBadge === `${p.id}-resale`}
+                      onToggle={(open) => setActiveTooltipBadge(open ? `${p.id}-resale` : null)}
+                      icon={<span className="text-xs">📈</span>}
+                      title={lang === 'bn' ? '১ বছরের রিসেল মূল্য সংরক্ষণ' : lang === 'hi' ? '1-वर्षीय रीसेल मूल्य प्रतिधारण' : '1-Year Resale Value Retention'}
+                      description={
+                        lang === 'bn'
+                          ? `১২ মাস স্বাভাবিক ব্যবহারের পর ভারতীয় এক্সচেঞ্জ ও সেকেন্ডারি মার্কেটপ্লেসে (যেমন Cashify, ট্রেড-ইন) আনুমানিক ${p.resaleRetentionPercent}% ক্রয়মূল্য অক্ষুণ্ণ থাকে।`
+                          : lang === 'hi'
+                          ? `12 महीने के सामान्य उपयोग के बाद भारतीय एक्सचेंज और सेकेंडरी मार्केट (जैसे Cashify, ट्रेड-इन) में अनुमानित ${p.resaleRetentionPercent}% खरीद मूल्य सुरक्षित रहता है।`
+                          : `Estimated percentage of original purchase price retained after 12 months on verified secondary and trade-in marketplaces in India (Cashify, OLX, exchange programs).`
+                      }
+                      benchmarkLabel="1-Year Retention"
+                      benchmarkValue={`${p.resaleRetentionPercent}% of Original Price`}
+                      badge={
+                        <span className="rounded bg-bg-surface border border-[var(--border-subtle)] px-1.5 py-0.5 text-content-secondary hover:border-brand-sky/50 transition-colors">
+                          📈 {p.resaleRetentionPercent}% Resale
+                        </span>
+                      }
+                    />
                   )}
                 </div>
 
@@ -1682,42 +1823,6 @@ export function ProductMatrix() {
       </div>
       </>
       )}
-
-      {/* ── Compare Side-by-Side Modal ── */}
-      {isCompareModalOpen && (
-        <CompareModal
-          productIds={compareIds}
-          allProducts={products}
-          onClose={() => setIsCompareModalOpen(false)}
-          onRemove={(id) => setCompareIds((prev) => prev.filter((item) => item !== id))}
-          onBuy={buy}
-        />
-      )}
-
-      {/* ── Review Submission Modal (1-10 Ratings) ── */}
-      {reviewProduct && (
-        <ReviewModal
-          product={reviewProduct}
-          onClose={() => setReviewProduct(null)}
-          onSubmit={(review) => handleAddReview(reviewProduct.id, review)}
-          currentUsername={profile?.username ?? user?.email ?? 'verified_citizen'}
-        />
-      )}
-
-      {/* ── Product Detail & Reviews Modal ── */}
-      {detailProduct && (
-        <ProductDetailModal
-          product={detailProduct}
-          allProducts={products}
-          onSelectProduct={(p) => setDetailProduct(p)}
-          onClose={() => setDetailProduct(null)}
-          onOpenReview={() => {
-            setReviewProduct(detailProduct);
-            setDetailProduct(null);
-          }}
-          onBuy={buy}
-        />
-      )}
     </div>
   );
 }
@@ -1757,6 +1862,134 @@ function CategoryButton({
         {count}
       </span>
     </button>
+  );
+}
+
+// ── Interactive Badge Tooltip (Click/Tap for Phone & Desktop) ───────────
+function BadgeTooltip({
+  badge,
+  icon,
+  title,
+  description,
+  benchmarkLabel,
+  benchmarkValue,
+  align = 'left',
+  isOpen: controlledIsOpen,
+  onToggle,
+}: {
+  badge: React.ReactNode;
+  icon?: React.ReactNode;
+  title: string;
+  description: string;
+  benchmarkLabel?: string;
+  benchmarkValue?: string;
+  align?: 'left' | 'right';
+  isOpen?: boolean;
+  onToggle?: (open: boolean) => void;
+}) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+  const setIsOpen = useCallback((valOrFn: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof valOrFn === 'function' ? valOrFn(isOpen) : valOrFn;
+    if (onToggle) {
+      onToggle(nextVal);
+    } else {
+      setInternalIsOpen(nextVal);
+    }
+  }, [isOpen, onToggle]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleOutsideClick(e: MouseEvent | TouchEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen, setIsOpen]);
+
+  return (
+    <div ref={containerRef} className={cn('relative inline-flex', isOpen ? 'z-50' : 'z-auto')}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        title="Tap to learn what this metric means"
+        className="group inline-flex items-center cursor-pointer transition-transform active:scale-95 focus:outline-none"
+      >
+        {badge}
+      </button>
+
+      {isOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            'absolute bottom-full mb-2 z-[60] w-64 sm:w-72 rounded-card border border-[var(--border-strong)] p-3.5 shadow-2xl text-left text-xs text-content-secondary animate-in fade-in zoom-in-95',
+            align === 'right' ? 'right-0 sm:left-auto' : 'left-0 sm:right-auto',
+          )}
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            boxShadow: '0 20px 45px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border-strong)',
+            opacity: 1,
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-2 mb-2">
+            <div className="flex items-center gap-1.5 font-bold text-xs text-content-primary">
+              {icon}
+              <span>{title}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              className="text-content-muted hover:text-content-primary p-1 rounded-full hover:bg-bg-elevated transition-colors"
+              aria-label="Close tooltip"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          {/* Description */}
+          <p className="text-[11px] leading-relaxed text-content-secondary">
+            {description}
+          </p>
+
+          {/* Benchmark info pill if present */}
+          {benchmarkLabel && benchmarkValue && (
+            <div
+              className="mt-2.5 flex items-center justify-between rounded px-2.5 py-1.5 text-[10px] border border-[var(--border-subtle)]"
+              style={{ backgroundColor: 'var(--bg-elevated)' }}
+            >
+              <span className="text-content-muted font-medium">{benchmarkLabel}</span>
+              <span className="font-bold text-brand-emerald">{benchmarkValue}</span>
+            </div>
+          )}
+
+          {/* Footer cue */}
+          <div className="mt-2.5 pt-1.5 border-t border-[var(--border-subtle)] text-[9px] text-content-muted flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <Info size={11} className="text-brand-emerald shrink-0" />
+              <span>Tap badge or outside to dismiss</span>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1801,14 +2034,15 @@ function ScoreBar({
   );
 }
 
-// ── Product Detail & Reviews Modal ───────────────────────────────────────
-function ProductDetailModal({
+// ── Product Drill-Down Page (Full In-Page Experience) ─────────────────────
+function ProductDrillDownPage({
   product,
   allProducts,
   onSelectProduct,
   onClose,
   onOpenReview,
   onBuy,
+  lang = 'en',
 }: {
   product: Product;
   allProducts?: Product[];
@@ -1816,6 +2050,7 @@ function ProductDetailModal({
   onClose: () => void;
   onOpenReview: () => void;
   onBuy: (id: string) => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   const [dailyCommuteKm, setDailyCommuteKm] = useState(35);
   const [activeDrillTab, setActiveDrillTab] = useState<'verdict' | 'specs' | 'price_history' | 'issues' | 'spares' | 'reviews'>('verdict');
@@ -1841,28 +2076,57 @@ function ProductDetailModal({
   const annualSavings = monthlySavings * 12;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4 backdrop-blur-sm">
-      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl sm:rounded-card border border-[var(--border-strong)] bg-bg-surface p-5 shadow-2xl animate-slide-up">
+    <div className="space-y-5 section-enter">
+      {/* ── Top Navigation Bar ── */}
+      <div className="flex items-center justify-between">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-button p-1 text-content-muted hover:text-content-primary"
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
         >
-          <X size={18} />
+          <ArrowLeft size={18} /> {lang === 'bn' ? 'প্রোডাক্ট হাবে ফিরে যান' : lang === 'hi' ? 'प्रोडक्ट हब पर वापस जाएं' : 'Back to Product Hub'}
         </button>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-brand-emerald">
+            {product.brand} · {product.category.toUpperCase()}
+          </span>
+          {product.reliabilityGrade && (
+            <span className="rounded-pill bg-brand-emerald/15 px-2 py-0.5 text-[10px] font-bold text-brand-emerald">
+              Grade {product.reliabilityGrade} Longevity
+            </span>
+          )}
+        </div>
+      </div>
 
+      <div className="rounded-card border border-[var(--border-strong)] bg-bg-surface p-5 sm:p-6 shadow-xl space-y-5">
         {/* Header */}
-        <div className="pr-8">
+        <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-emerald">
             <span>{product.brand}</span>
             <span>·</span>
             <span>{product.category.toUpperCase()}</span>
             {product.reliabilityGrade && (
-              <span className="rounded-pill bg-brand-emerald/15 px-2 py-0.5 text-[10px] font-bold text-brand-emerald">
-                Grade {product.reliabilityGrade} Longevity
-              </span>
+              <BadgeTooltip
+                align="left"
+                icon={<span className="text-xs">🏆</span>}
+                title={lang === 'bn' ? `স্থায়িত্ব গ্রেড ${product.reliabilityGrade}` : lang === 'hi' ? `विश्वसनीयता ग्रेड ${product.reliabilityGrade}` : `Reliability & Longevity: Grade ${product.reliabilityGrade}`}
+                description={
+                  lang === 'bn'
+                    ? `১২-২৪+ মাস ব্যবহারকারী মালিকদের দীর্ঘমেয়াদী তথ্যের ভিত্তিতে নির্ধারিত। ব্যাটারি ক্ষয়, হার্ডওয়্যার স্থায়িত্ব ও যন্ত্রাংশের সহজলভ্যতায় গ্রেড ${product.reliabilityGrade} শীর্ষমানের স্থায়িত্ব নির্দেশ করে।`
+                    : lang === 'hi'
+                    ? `12–24+ महीने के मालिक चेक-इन के आधार पर निर्धारित। बैटरी क्षय, हार्डवेयर स्थायित्व और स्पेयर पार्ट्स की उपलब्धता में ग्रेड ${product.reliabilityGrade} शीर्ष स्तर की दीर्घायु दर्शाता है।`
+                    : `Computed from verified 12–24+ month owner check-ins evaluating battery health retention, motherboard integrity, parts availability, and repairability. Grade ${product.reliabilityGrade} indicates top-tier long-term endurance.`
+                }
+                benchmarkLabel="Longevity Score"
+                benchmarkValue={product.reliabilityGrade === 'A+' ? '9.5+ / 10 Minimal Decay' : '8.5+ / 10 Solid'}
+                badge={
+                  <span className="rounded-pill bg-brand-emerald/15 px-2 py-0.5 text-[10px] font-bold text-brand-emerald hover:bg-brand-emerald/25 transition-colors">
+                    Grade {product.reliabilityGrade} Longevity
+                  </span>
+                }
+              />
             )}
           </div>
-          <h2 className="text-xl font-black text-content-primary mt-0.5">{product.name}</h2>
+          <h1 className="text-2xl font-black text-content-primary mt-1">{product.name}</h1>
 
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <span className="font-mono text-lg font-bold text-content-primary">
@@ -1876,19 +2140,41 @@ function ProductDetailModal({
               {product.owner_rating?.toFixed(1) ?? '—'} / 10
             </div>
             {product.fairPriceStatus && (
-              <span
-                className={`rounded-pill px-2 py-0.5 text-xs font-bold border ${
+              <BadgeTooltip
+                align="left"
+                icon={<span className="text-xs">{product.fairPriceStatus === 'steal_deal' ? '🟢' : product.fairPriceStatus === 'fair_market' ? '🔵' : '🔴'}</span>}
+                title={
                   product.fairPriceStatus === 'steal_deal'
-                    ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald'
+                    ? (lang === 'bn' ? 'সেরা ডিল (Steal Deal)' : lang === 'hi' ? 'शानदार सौदा (Steal Deal)' : 'Fair Price: Steal Deal')
                     : product.fairPriceStatus === 'fair_market'
-                    ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky'
-                    : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose'
-                }`}
-              >
-                {product.fairPriceStatus === 'steal_deal' && '🟢 Steal Deal'}
-                {product.fairPriceStatus === 'fair_market' && '🔵 Fair Market Price'}
-                {product.fairPriceStatus === 'overpriced' && '🔴 Overpriced (Wait)'}
-              </span>
+                    ? (lang === 'bn' ? 'ন্যায্য বাজার মূল্য' : lang === 'hi' ? 'उचित बाज़ार मूल्य' : 'Fair Market Price')
+                    : (lang === 'bn' ? 'অতিরিক্ত দাম (অপেক্ষা করুন)' : lang === 'hi' ? 'अधिक कीमत (इंतज़ार करें)' : 'Overpriced (Wait for Sale)')
+                }
+                description={
+                  product.fairPriceStatus === 'steal_deal'
+                    ? 'Selling at or below the 90-day verified lowest price across top Indian retailers (Amazon, Flipkart, brand store). Exceptional value-to-performance.'
+                    : product.fairPriceStatus === 'fair_market'
+                    ? 'Current price aligns with the 90-day verified median historical price baseline.'
+                    : 'Currently priced above historical averages. Consider waiting for an upcoming festive sale or refresh discount.'
+                }
+                benchmarkLabel="Retail History"
+                benchmarkValue={product.fairPriceStatus === 'steal_deal' ? '90-Day Low' : product.fairPriceStatus === 'fair_market' ? 'Median Price' : 'Above Average'}
+                badge={
+                  <span
+                    className={`rounded-pill px-2 py-0.5 text-xs font-bold border transition-colors ${
+                      product.fairPriceStatus === 'steal_deal'
+                        ? 'border-brand-emerald/40 bg-brand-emerald/15 text-brand-emerald hover:bg-brand-emerald/25'
+                        : product.fairPriceStatus === 'fair_market'
+                        ? 'border-brand-sky/40 bg-brand-sky/15 text-brand-sky hover:bg-brand-sky/25'
+                        : 'border-brand-rose/40 bg-brand-rose/15 text-brand-rose hover:bg-brand-rose/25'
+                    }`}
+                  >
+                    {product.fairPriceStatus === 'steal_deal' && '🟢 Steal Deal'}
+                    {product.fairPriceStatus === 'fair_market' && '🔵 Fair Market Price'}
+                    {product.fairPriceStatus === 'overpriced' && '🔴 Overpriced (Wait)'}
+                  </span>
+                }
+              />
             )}
           </div>
         </div>
@@ -2038,26 +2324,65 @@ function ProductDetailModal({
               </div>
             </div>
 
-            {/* Quick Reality Gap & Longevity Snapshot */}
+            {/* Quick Reality Gap & Longevity Snapshot (Interactive Tooltips) */}
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)]">
-                <div className="text-[10px] text-content-muted">Marketing Reality Gap</div>
-                <div className="font-mono font-bold text-brand-emerald text-sm mt-0.5">
-                  {product.realityGapScore ?? 12}%
-                </div>
-              </div>
-              <div className="rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)]">
-                <div className="text-[10px] text-content-muted">1-Year Resale Value</div>
-                <div className="font-mono font-bold text-brand-sky text-sm mt-0.5">
-                  {product.resaleRetentionPercent ?? 65}%
-                </div>
-              </div>
-              <div className="rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)]">
-                <div className="text-[10px] text-content-muted">Repairability Score</div>
-                <div className="font-mono font-bold text-brand-amber text-sm mt-0.5">
-                  {product.repairabilityIndex ?? 7.5} / 10
-                </div>
-              </div>
+              <BadgeTooltip
+                align="left"
+                icon={<span className="text-xs">🎯</span>}
+                title="Marketing Reality Gap"
+                description={`Measures the variance between manufacturer claims and real telemetry from verified owners. ${product.realityGapScore ?? 12}% gap indicates real-world alignment under daily workloads. Lower is better (≤12% is best-in-class).`}
+                benchmarkLabel="Benchmark"
+                benchmarkValue={(product.realityGapScore ?? 12) <= 12 ? '≤12% Best-in-Class' : (product.realityGapScore ?? 12) <= 22 ? '13–22% Typical' : '>22% Disputed'}
+                badge={
+                  <div className="w-full rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)] hover:border-brand-emerald/40 transition-colors">
+                    <div className="text-[10px] text-content-muted flex items-center justify-center gap-1">
+                      <span>Marketing Reality Gap</span>
+                      <Info size={10} className="text-content-muted" />
+                    </div>
+                    <div className="font-mono font-bold text-brand-emerald text-sm mt-0.5">
+                      {product.realityGapScore ?? 12}%
+                    </div>
+                  </div>
+                }
+              />
+              <BadgeTooltip
+                align="left"
+                icon={<span className="text-xs">📈</span>}
+                title="1-Year Resale Value Retention"
+                description={`Estimated ${product.resaleRetentionPercent ?? 65}% of original retail purchase price retained on trade-in and refurbished marketplaces after 12 months.`}
+                benchmarkLabel="1-Year Retention"
+                benchmarkValue={`${product.resaleRetentionPercent ?? 65}% Retained`}
+                badge={
+                  <div className="w-full rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)] hover:border-brand-sky/40 transition-colors">
+                    <div className="text-[10px] text-content-muted flex items-center justify-center gap-1">
+                      <span>1-Year Resale Value</span>
+                      <Info size={10} className="text-content-muted" />
+                    </div>
+                    <div className="font-mono font-bold text-brand-sky text-sm mt-0.5">
+                      {product.resaleRetentionPercent ?? 65}%
+                    </div>
+                  </div>
+                }
+              />
+              <BadgeTooltip
+                align="right"
+                icon={<span className="text-xs">🔧</span>}
+                title="Hardware Repairability Score"
+                description="Evaluation of modular components, screen and battery replacement difficulty, and OEM spare parts availability in India."
+                benchmarkLabel="Score Standard"
+                benchmarkValue={`${product.repairabilityIndex ?? 7.5} / 10 Easy Repair`}
+                badge={
+                  <div className="w-full rounded-button bg-bg-elevated p-2 border border-[var(--border-subtle)] hover:border-brand-amber/40 transition-colors">
+                    <div className="text-[10px] text-content-muted flex items-center justify-center gap-1">
+                      <span>Repairability Score</span>
+                      <Info size={10} className="text-content-muted" />
+                    </div>
+                    <div className="font-mono font-bold text-brand-amber text-sm mt-0.5">
+                      {product.repairabilityIndex ?? 7.5} / 10
+                    </div>
+                  </div>
+                }
+              />
             </div>
 
             {/* Vehicle Commute ROI Calculator (if bike or car) */}
@@ -2393,10 +2718,10 @@ function ProductDetailModal({
           </div>
         )}
 
-        {/* Modal Footer Actions */}
-        <div className="mt-6 flex items-center justify-between border-t border-[var(--border-subtle)] pt-4">
-          <Button variant="ghost" onClick={onClose}>
-            Close
+        {/* Page Footer Actions */}
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
+          <Button variant="outline" onClick={onClose}>
+            <ArrowLeft size={14} className="mr-1" /> {lang === 'bn' ? 'প্রোডাক্ট হাবে ফিরে যান' : lang === 'hi' ? 'प्रोडक्ट हब पर वापस जाएं' : 'Back to Product Hub'}
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onOpenReview}>
@@ -2412,17 +2737,19 @@ function ProductDetailModal({
   );
 }
 
-// ── Review Submission Modal (1-10 Slider / Selectors) ────────────────────
-function ReviewModal({
+// ── Review Submission Page (Full In-Page Experience) ─────────────────────
+function ProductReviewPage({
   product,
   onClose,
   onSubmit,
   currentUsername,
+  lang = 'en',
 }: {
   product: Product;
   onClose: () => void;
   onSubmit: (review: ProductReview) => void;
   currentUsername: string;
+  lang?: import('@/lib/types').Lang;
 }) {
   const [camera, setCamera] = useState<number>(8);
   const [battery, setBattery] = useState<number>(8);
@@ -2471,27 +2798,32 @@ function ReviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4 backdrop-blur-sm">
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl sm:rounded-card border border-[var(--border-strong)] bg-bg-surface p-5 shadow-2xl animate-slide-up">
+    <div className="space-y-5 section-enter">
+      <div className="flex items-center justify-between">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-button p-1 text-content-muted hover:text-content-primary"
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
         >
-          <X size={18} />
+          <ArrowLeft size={18} /> {lang === 'bn' ? 'প্রোডাক্টে ফিরে যান' : lang === 'hi' ? 'उत्पाद पर वापस जाएं' : 'Back to Product'}
         </button>
+        <span className="text-xs font-bold text-brand-emerald">
+          {product.brand} · {product.name}
+        </span>
+      </div>
 
+      <div className="rounded-card border border-[var(--border-strong)] bg-bg-surface p-5 sm:p-6 shadow-xl space-y-4">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-semibold text-brand-emerald">
             <BadgeCheck size={14} /> Verified Owner Review
           </div>
-          <h2 className="text-lg font-black text-content-primary">Rate {product.name}</h2>
+          <h2 className="text-xl font-black text-content-primary mt-1">Rate {product.name}</h2>
           <p className="mt-0.5 text-xs text-content-muted">
             Rate key metrics on a 1-10 scale. Verified telemetry informs fellow buyers.
           </p>
         </div>
 
         {/* Live Overall Score */}
-        <div className="mt-4 flex items-center justify-between rounded-button bg-brand-emerald/10 border border-brand-emerald/30 p-3">
+        <div className="flex items-center justify-between rounded-button bg-brand-emerald/10 border border-brand-emerald/30 p-3">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-brand-emerald">
               Overall Calculated Rating
@@ -2646,7 +2978,7 @@ function ReviewModal({
           </div>
 
           {/* Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
             <Button variant="ghost" type="button" onClick={onClose}>
               Cancel
             </Button>
@@ -2706,19 +3038,21 @@ function RatingSlider({
   );
 }
 
-// ── Side-by-Side Product Comparison Modal ────────────────────────────────
-function CompareModal({
+// ── Side-by-Side Product Comparison Page (Full In-Page Experience) ──────
+function ProductComparePage({
   productIds,
   allProducts,
   onClose,
   onRemove,
   onBuy,
+  lang = 'en',
 }: {
   productIds: string[];
   allProducts: Product[];
   onClose: () => void;
   onRemove: (id: string) => void;
   onBuy: (id: string) => void;
+  lang?: import('@/lib/types').Lang;
 }) {
   const products = useMemo(
     () => allProducts.filter((p) => productIds.includes(p.id)),
@@ -2826,27 +3160,31 @@ function CompareModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm">
-      <div className="relative max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-card border border-[var(--border-strong)] bg-bg-surface shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] p-4">
-          <div className="flex items-center gap-2">
-            <Scale size={20} className="text-brand-emerald" />
-            <div>
-              <h3 className="text-sm font-bold text-content-primary">Side-by-Side Product Comparison</h3>
-              <p className="text-xs text-content-muted">Comparing {products.length} products on verified 1-10 ratings</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-button p-1 text-content-muted hover:text-content-primary"
-          >
-            <X size={18} />
-          </button>
+    <div className="space-y-5 section-enter">
+      {/* ── Top Bar with Back Button ── */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onClose}
+          className="press-effect flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary transition-colors"
+        >
+          <ArrowLeft size={18} /> {lang === 'bn' ? 'প্রোডাক্ট হাবে ফিরে যান' : lang === 'hi' ? 'प्रोडक्ट हब पर वापस जाएं' : 'Back to Product Hub'}
+        </button>
+        <div className="flex items-center gap-2">
+          <Scale size={18} className="text-brand-emerald" />
+          <span className="text-xs font-bold text-content-primary">
+            Comparing {products.length} Products
+          </span>
+        </div>
+      </div>
+
+      <div className="rounded-card border border-[var(--border-strong)] bg-bg-surface p-5 sm:p-6 shadow-xl flex flex-col space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-content-primary">Side-by-Side Product Comparison</h2>
+          <p className="text-xs text-content-muted">Comparing {products.length} products on verified 1-10 telemetry ratings</p>
         </div>
 
         {/* Comparison Table */}
-        <div className="overflow-x-auto overflow-y-auto p-4 flex-1">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <div className="grid text-xs border border-[var(--border-subtle)] rounded-lg overflow-hidden" style={{ gridTemplateColumns: cols }}>
             {/* Top row: Product Headers */}
             <div className="border-b border-[var(--border-subtle)] bg-bg-elevated p-3 font-bold text-content-secondary">
@@ -2908,9 +3246,9 @@ function CompareModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[var(--border-subtle)] p-3 text-right bg-bg-elevated">
-          <Button variant="outline" onClick={onClose} className="px-3 py-1.5 text-xs">
-            Back to Products
+        <div className="border-t border-[var(--border-subtle)] pt-4 text-right">
+          <Button variant="outline" onClick={onClose} className="px-3.5 py-1.5 text-xs">
+            <ArrowLeft size={14} className="mr-1" /> {lang === 'bn' ? 'প্রোডাক্ট হাবে ফিরে যান' : lang === 'hi' ? 'प्रोडक्ट हब पर वापस जाएं' : 'Back to Product Hub'}
           </Button>
         </div>
       </div>
