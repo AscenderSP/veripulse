@@ -849,7 +849,7 @@ export function NewsHub() {
                       </div>
 
                       <div className="mt-1.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-1.5 text-[10px]">
-                        <span className="flex items-center gap-1 text-content-muted">
+                        <span className="flex items-center gap-1 text-content-muted" suppressHydrationWarning>
                           <Clock size={10} /> {timeAgo(article.leadReporter.submittedAt)}
                         </span>
                         <span className="flex items-center gap-0.5 font-mono font-bold text-brand-emerald">
@@ -891,7 +891,7 @@ export function NewsHub() {
                           <MapPin size={11} /> {article.locationName}
                         </span>
                         <span>•</span>
-                        <span>{timeAgo(article.publishedAt)}</span>
+                        <span suppressHydrationWarning>{timeAgo(article.publishedAt)}</span>
                       </div>
 
                       <div className="flex items-center gap-1.5 font-mono text-[11px]">

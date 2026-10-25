@@ -157,6 +157,11 @@ function buildNotifications(): NotificationItem[] {
 function LiveNotifications({ onNavigate }: { onNavigate?: (s: Section) => void }) {
   const { lang } = useLang();
   const [notifications] = useState<NotificationItem[]>(buildNotifications);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const iconForType = (type: NotificationItem['type']) => {
     switch (type) {
@@ -201,7 +206,7 @@ function LiveNotifications({ onNavigate }: { onNavigate?: (s: Section) => void }
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-content-muted">{labelForType(n.type)}</span>
-                    <span className="text-[9px] text-content-muted">· {timeAgo(n.time)}</span>
+                    <span className="text-[9px] text-content-muted" suppressHydrationWarning>· {mounted ? timeAgo(n.time) : 'recently'}</span>
                   </div>
                   <span className="font-medium text-content-primary line-clamp-1 group-hover:text-brand-emerald transition-colors">{n.title}</span>
                   <span className="text-[10px] text-content-muted line-clamp-1">{n.detail}</span>
@@ -265,7 +270,7 @@ function LiveNewsTicker() {
                 <span className="truncate">{item.source}</span>
                 <span>·</span>
                 <Clock size={9} className="shrink-0" />
-                <span>{timeAgo(item.publishedAt)}</span>
+                <span suppressHydrationWarning>{timeAgo(item.publishedAt)}</span>
               </div>
             </div>
             <ExternalLink size={10} className="shrink-0 mt-1 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />

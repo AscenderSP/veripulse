@@ -107,7 +107,7 @@ export function StoryCard({
             </Badge>
           )}
         </div>
-        <span className="shrink-0 text-xs text-content-muted">{timeAgo(story.created_at)}</span>
+        <span className="shrink-0 text-xs text-content-muted" suppressHydrationWarning>{timeAgo(story.created_at)}</span>
       </div>
 
       {/* body */}

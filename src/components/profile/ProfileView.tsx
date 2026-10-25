@@ -226,7 +226,7 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
                     <MapPin size={12} /> {profile.city || 'India'}
                   </span>
                   <span>•</span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1" suppressHydrationWarning>
                     <Calendar size={12} /> Joined {timeAgo(profile.created_at)}
                   </span>
                 </div>

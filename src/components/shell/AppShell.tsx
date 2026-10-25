@@ -507,7 +507,7 @@ function SentinelDesk({ onVerify, onNavigate }: { onVerify: () => void; onNaviga
             {notifications.map((n) => (
               <li key={n.id} className="flex justify-between gap-3 rounded-button glass px-3 py-2">
                 <span className={n.kind === 'retraction' ? 'text-brand-rose' : 'text-content-secondary'}>{n.body[lang]}</span>
-                <span className="shrink-0 text-content-muted">{timeAgo(n.created_at)}</span>
+                <span className="shrink-0 text-content-muted" suppressHydrationWarning>{timeAgo(n.created_at)}</span>
               </li>
             ))}
           </ul>
