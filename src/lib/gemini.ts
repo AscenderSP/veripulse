@@ -8,7 +8,7 @@ import type { GeminiStoryAnalysis, GeminiOcrResult, LocalizedText } from './type
  */
 
 const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
-const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash';
 const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
 
 function apiKey(): string {
