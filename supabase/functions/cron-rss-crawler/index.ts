@@ -20,7 +20,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY')!;
 const TEXT_MODEL = Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-3.8-flash';
-const EMBED_MODEL = Deno.env.get('GEMINI_EMBED_MODEL') ?? 'text-embedding-004';
+const EMBED_MODEL = Deno.env.get('GEMINI_EMBED_MODEL') ?? 'gemini-embedding-001';
 
 // Regional + global wire coverage. Reuters and PTI no longer publish open
 // RSS, so their wires are reached through Google News source filters.
@@ -30,7 +30,7 @@ const FEEDS: { name: string; url: string }[] = [
   { name: 'Reuters India', url: 'https://news.google.com/rss/search?q=source:Reuters+India+when:1d&hl=en-IN&gl=IN&ceid=IN:en' },
   { name: 'The Hindu', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
 ];
-const MAX_PER_RUN = 12;
+const MAX_PER_RUN = 6;
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
@@ -95,6 +95,7 @@ async function embed(text: string): Promise<number[]> {
       body: JSON.stringify({
         model: `models/${EMBED_MODEL}`,
         content: { parts: [{ text: text.slice(0, 8000) }] },
+        outputDimensionality: 768,
       }),
     },
   );
@@ -128,7 +129,7 @@ Deno.serve(async () => {
 
   for (const feed of FEEDS) {
     try {
-      const res = await fetch(feed.url);
+      const res = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(`${feed.name}: HTTP ${res.status}`);
       const xml = await res.text();
       sources.push({ name: feed.name, ok: true });
