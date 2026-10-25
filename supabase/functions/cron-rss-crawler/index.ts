@@ -61,6 +61,9 @@ function clean(s: string): string {
 }
 
 async function gemini(prompt: string): Promise<string> {
+  if (!GEMINI_KEY) {
+    throw new Error('GEMINI_API_KEY secret is not set in Supabase Edge Functions. Run: npx supabase secrets set GEMINI_API_KEY=...');
+  }
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_KEY}`,
     {
@@ -72,11 +75,18 @@ async function gemini(prompt: string): Promise<string> {
       }),
     },
   );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error (${res.status}): ${err}`);
+  }
   const data = await res.json();
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
 }
 
 async function embed(text: string): Promise<number[]> {
+  if (!GEMINI_KEY) {
+    throw new Error('GEMINI_API_KEY secret is not set in Supabase Edge Functions');
+  }
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${GEMINI_KEY}`,
     {
@@ -88,6 +98,10 @@ async function embed(text: string): Promise<number[]> {
       }),
     },
   );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini Embed error (${res.status}): ${err}`);
+  }
   const data = await res.json();
   return data?.embedding?.values ?? [];
 }
@@ -130,26 +144,33 @@ Deno.serve(async () => {
 Each summary <=60 words. Translate to English/Bengali/Hindi. No invented facts.
 Item: """${raw}"""`;
 
-          const analysis = parseJson(await gemini(prompt));
-          for (const k of ['en', 'bn', 'hi']) {
-            analysis.summaries[k] = clampWords(analysis.summaries[k]);
-          }
-          const vector = await embed(`${analysis.titles.en}. ${analysis.summaries.en}`);
+          const rawAnalysis = parseJson(await gemini(prompt)) || {};
+          const titles = {
+            en: rawAnalysis.titles?.en || it.title || 'Breaking Wire Update',
+            bn: rawAnalysis.titles?.bn || rawAnalysis.titles?.en || it.title || 'ব্রেকিং আপডেট',
+            hi: rawAnalysis.titles?.hi || rawAnalysis.titles?.en || it.title || 'ब्रेकिंग अपडेट',
+          };
+          const summaries = {
+            en: clampWords(rawAnalysis.summaries?.en || it.description || it.title || ''),
+            bn: clampWords(rawAnalysis.summaries?.bn || rawAnalysis.summaries?.en || it.description || it.title || ''),
+            hi: clampWords(rawAnalysis.summaries?.hi || rawAnalysis.summaries?.en || it.description || it.title || ''),
+          };
+          const vector = await embed(`${titles.en}. ${summaries.en}`);
           if (vector.length !== 768) continue;
 
           const { data, error } = await admin.rpc('ingest_story', {
             p_author: null,
-            p_category: analysis.category ?? 'Other',
+            p_category: rawAnalysis.category ?? 'Other',
             p_location_name: 'Wire',
             p_lat: null,
             p_lng: null,
-            p_titles: analysis.titles,
-            p_summaries: analysis.summaries,
+            p_titles: titles,
+            p_summaries: summaries,
             p_media_url: null,
             p_media_type: 'image',
             p_c2pa: false,
-            p_ai_prob: analysis.ai_probability_score ?? 0,
-            p_completeness: analysis.completeness_score ?? 50,
+            p_ai_prob: rawAnalysis.ai_probability_score ?? 0,
+            p_completeness: rawAnalysis.completeness_score ?? 50,
             p_embedding: vector,
             p_source: 'rss',
           });
