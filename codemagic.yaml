@@ -1,0 +1,80 @@
+workflows:
+  # ── Android: APK + AAB ──────────────────────────────────────────────────
+  android-build:
+    name: VeriPulse Android (APK/AAB)
+    max_build_duration: 60
+    environment:
+      node: 22
+      java: 17
+      vars:
+        NEXT_PUBLIC_API_ORIGIN: $NEXT_PUBLIC_API_ORIGIN
+        NEXT_PUBLIC_SUPABASE_URL: $NEXT_PUBLIC_SUPABASE_URL
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: $NEXT_PUBLIC_SUPABASE_ANON_KEY
+        NEXT_PUBLIC_ADMOB_BANNER_ID: $NEXT_PUBLIC_ADMOB_BANNER_ID
+        NEXT_PUBLIC_ADMOB_INTERSTITIAL_ID: $NEXT_PUBLIC_ADMOB_INTERSTITIAL_ID
+      android_signing:
+        - veripulse_keystore
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Static export (mobile)
+        script: npm run build:mobile
+      - name: Capacitor sync
+        script: npx cap sync android
+      - name: Build AAB + APK
+        script: |
+          cd android
+          ./gradlew bundleRelease assembleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - sayantan.sp1@gmail.com
+
+  # ── iOS: IPA ────────────────────────────────────────────────────────────
+  ios-build:
+    name: VeriPulse iOS (IPA)
+    max_build_duration: 90
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+      vars:
+        NEXT_PUBLIC_API_ORIGIN: $NEXT_PUBLIC_API_ORIGIN
+        NEXT_PUBLIC_SUPABASE_URL: $NEXT_PUBLIC_SUPABASE_URL
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: $NEXT_PUBLIC_SUPABASE_ANON_KEY
+        NEXT_PUBLIC_ADMOB_BANNER_ID: $NEXT_PUBLIC_ADMOB_BANNER_ID
+        NEXT_PUBLIC_ADMOB_INTERSTITIAL_ID: $NEXT_PUBLIC_ADMOB_INTERSTITIAL_ID
+        ADMOB_IOS_APP_ID: $ADMOB_IOS_APP_ID
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.veripulse.trustednews
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Static export (mobile)
+        script: npm run build:mobile
+      - name: Generate iOS project + permissions
+        script: |
+          [ -d ios ] || npx cap add ios
+          PL=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'VeriPulse uses your camera to capture verified, location-stamped photos for news reports and ownership documents.'" $PL || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'VeriPulse attaches your location to reports so neighbours can verify hyperlocal news.'" $PL || true
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_IOS_APP_ID" $PL || true
+      - name: Capacitor sync
+        script: npx cap sync ios
+      - name: Install pods
+        script: cd ios/App && pod install
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace ios/App/App.xcworkspace \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - sayantan.sp1@gmail.com
