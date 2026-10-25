@@ -11,20 +11,24 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowRight,
+  Gift,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import { DEMO_DIVIDENDS } from '@/lib/demoData';
-import { formatINR } from '@/lib/utils';
+import { formatINR, formatVPCoins, inrToVPCoins, vpCoinsToINR } from '@/lib/utils';
 import type { SentinelDividend } from '@/lib/types';
 
 export function SentinelPool() {
   const [dividends, setDividends] = useState<SentinelDividend[]>(DEMO_DIVIDENDS);
   const currentStreak = 7;
   const streakMultiplier = 1.5;
-  const todayPool = 2450;
-  const yourEstShare = 82;
+  const todayPoolInr = 2450;
+  const todayPoolVp = inrToVPCoins(todayPoolInr); // 24,500 VP
+  const yourEstShareInr = 82;
+  const yourEstShareVp = inrToVPCoins(yourEstShareInr); // 820 VP
 
-  const totalEarnedFromDividends = dividends.reduce((s, d) => s + d.yourShareInr, 0);
+  const totalEarnedInr = dividends.reduce((s, d) => s + d.yourShareInr, 0);
+  const totalEarnedVp = inrToVPCoins(totalEarnedInr);
 
   return (
     <div className="space-y-4">
@@ -36,22 +40,22 @@ export function SentinelPool() {
               Accuracy-Based Staking
             </span>
             <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
-              Daily Lottery / Pool
+              Daily VPcoin Dividend Pool
             </Badge>
           </div>
           <h3 className="mt-1 text-base font-extrabold text-content-primary">
             Daily Sentinel Dividend Pool
           </h3>
           <p className="text-xs text-content-muted">
-            Spend 5-10 minutes each morning reviewing pending community reports. Accuracy builds streaks and pays out daily dividends.
+            Spend 5-10 minutes each morning reviewing pending community reports. Accuracy builds streaks and pays out ample VPcoins.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="rounded-button bg-bg-elevated px-3 py-1.5 text-right">
+          <div className="rounded-button bg-bg-elevated px-3 py-1.5 text-right border border-[var(--border-subtle)]">
             <div className="text-[10px] text-content-muted">Total Dividends Earned</div>
-            <div className="font-mono text-sm font-bold text-brand-emerald">
-              ₹{totalEarnedFromDividends} UPI
+            <div className="font-mono text-sm font-bold text-brand-amber">
+              +{formatVPCoins(totalEarnedVp)}
             </div>
           </div>
         </div>
@@ -77,10 +81,10 @@ export function SentinelPool() {
             </div>
           </div>
 
-          <div className="rounded-button bg-bg-surface border border-[var(--border-subtle)] p-2.5 text-xs text-right">
+          <div className="rounded-button bg-bg-surface border border-brand-amber/30 p-2.5 text-xs text-right">
             <div className="text-[10px] text-content-muted">Today&apos;s Estimated Share</div>
-            <div className="font-mono text-lg font-bold text-brand-emerald">
-              +{formatINR(yourEstShare)}
+            <div className="font-mono text-lg font-bold text-brand-amber">
+              +{formatVPCoins(yourEstShareVp)}
             </div>
           </div>
         </div>
@@ -97,47 +101,53 @@ export function SentinelPool() {
           </div>
           <div className="rounded bg-brand-amber/20 border border-brand-amber/40 p-1.5">
             <div className="text-[10px] text-brand-amber font-bold">7-13 Days (Current)</div>
-            <div className="font-mono font-bold text-brand-amber">1.5×</div>
+            <div className="font-mono font-bold text-brand-amber">1.5× (+100 VP / day)</div>
           </div>
           <div className="rounded bg-bg-surface p-1.5">
             <div className="text-[10px] text-content-muted">14+ Days</div>
-            <div className="font-mono font-bold text-brand-emerald">2.0× Max</div>
+            <div className="font-mono font-bold text-brand-emerald">2.0× Max (+250 VP)</div>
           </div>
         </div>
       </Card>
 
       {/* Dividend History Table */}
       <Card className="p-4 space-y-3">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-content-secondary">
-          7-Day Dividend Distribution History
-        </h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-content-secondary">
+            7-Day Dividend Distribution History
+          </h4>
+        </div>
 
         <div className="space-y-2">
-          {dividends.map((div, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-button bg-bg-surface p-3 text-xs border border-[var(--border-subtle)]"
-            >
-              <div className="flex items-center gap-2.5">
-                <Calendar size={14} className="text-content-muted" />
-                <div>
-                  <div className="font-medium text-content-primary">{div.date}</div>
+          {dividends.map((div, i) => {
+            const shareVp = div.yourShareVpCoins ?? inrToVPCoins(div.yourShareInr);
+            const poolVp = div.poolVpCoins ?? inrToVPCoins(div.poolAmountInr);
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-button bg-bg-surface p-3 text-xs border border-[var(--border-subtle)]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Calendar size={14} className="text-content-muted" />
+                  <div>
+                    <div className="font-medium text-content-primary">{div.date}</div>
+                    <div className="text-[10px] text-content-muted">
+                      {div.storiesReviewed} checks · {div.accuracy.toFixed(1)}% accuracy · {div.streakMultiplier}× multiplier
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="font-mono font-bold text-brand-amber">
+                    +{formatVPCoins(shareVp)}
+                  </div>
                   <div className="text-[10px] text-content-muted">
-                    {div.storiesReviewed} checks · {div.accuracy.toFixed(1)}% accuracy · {div.streakMultiplier}× multiplier
+                    Pool: {formatVPCoins(poolVp)}
                   </div>
                 </div>
               </div>
-
-              <div className="text-right">
-                <div className="font-mono font-bold text-brand-emerald">
-                  +{formatINR(div.yourShareInr)}
-                </div>
-                <div className="text-[10px] text-content-muted">
-                  Pool: {formatINR(div.poolAmountInr)}
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
     </div>

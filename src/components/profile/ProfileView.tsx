@@ -32,9 +32,10 @@ import {
   Globe,
   Smartphone,
   ArrowLeft,
+  Coins,
 } from 'lucide-react';
 import { Button, Card } from '@/components/ui/primitives';
-import { cn, formatINR, timeAgo } from '@/lib/utils';
+import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
@@ -311,12 +312,12 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
               {profile.wallet_balance_inr !== undefined && (
                 <div
                   onClick={onNavigateToWallet}
-                  className="cursor-pointer flex items-center gap-1.5 text-content-muted hover:text-brand-emerald"
+                  className="cursor-pointer flex items-center gap-1.5 text-content-muted hover:text-brand-amber transition-colors"
                 >
-                  <Wallet size={13} className="text-brand-emerald" />
-                  <span>{t('nav_wallet', lang)}:</span>
-                  <span className="font-mono font-bold text-content-primary">
-                    {formatINR(profile.wallet_balance_inr)}
+                  <Coins size={13} className="text-brand-amber" />
+                  <span>Sentinel VP:</span>
+                  <span className="font-mono font-bold text-brand-amber">
+                    {formatVPCoins(profile.wallet_balance_vpcoins ?? inrToVPCoins(profile.wallet_balance_inr))}
                   </span>
                 </div>
               )}
@@ -526,15 +527,17 @@ function OverviewTab({
           </div>
 
           <div className="rounded-card border border-[var(--border-subtle)] bg-bg-primary p-3">
-            <div className="text-[10px] text-content-muted">Wallet Balance</div>
-            <div className="mt-1 font-mono text-xl font-bold text-brand-emerald">
-              {formatINR(profile.wallet_balance_inr)}
+            <div className="text-[10px] text-content-muted">
+              Sentinel VP Balance
+            </div>
+            <div className="mt-1 font-mono text-xl font-bold text-brand-amber">
+              {formatVPCoins(profile.wallet_balance_vpcoins ?? inrToVPCoins(profile.wallet_balance_inr))}
             </div>
             <button
               onClick={onNavigateToWallet}
-              className="mt-1 text-[10px] text-brand-emerald hover:underline"
+              className="mt-1.5 text-[10px] text-brand-emerald hover:underline block"
             >
-              Withdraw to UPI →
+              Redeem in Wallet →
             </button>
           </div>
         </div>

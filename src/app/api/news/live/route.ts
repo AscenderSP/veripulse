@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
-
-export interface LiveNewsItem {
-  id: string;
-  title: string;
-  description: string;
-  url: string;
-  source: string;
-  image: string | null;
-  publishedAt: string;
-  category: string;
-}
+import type { LiveNewsItem } from '@/lib/types';
+export type { LiveNewsItem };
 
 const FALLBACK_NEWS: LiveNewsItem[] = [
   {

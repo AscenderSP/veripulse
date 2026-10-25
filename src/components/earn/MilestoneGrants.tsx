@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import { DEMO_MILESTONE_GRANTS } from '@/lib/demoData';
-import { formatINR } from '@/lib/utils';
+import { formatINR, formatVPCoins, inrToVPCoins } from '@/lib/utils';
 import type { MilestoneGrant } from '@/lib/types';
 
 export function MilestoneGrants({ onClaimSuccess }: { onClaimSuccess?: (amt: number) => void }) {
@@ -28,7 +28,7 @@ export function MilestoneGrants({ onClaimSuccess }: { onClaimSuccess?: (amt: num
       prev.map((g) => (g.id === grantId ? { ...g, status: 'claimed' } : g)),
     );
     onClaimSuccess?.(grant.rewardInr);
-    alert(`Milestone Grant of ₹${grant.rewardInr} credited to your VeriPulse wallet!`);
+    alert(`Milestone Grant of +${formatVPCoins(inrToVPCoins(grant.rewardInr))} credited to your VeriPulse wallet!`);
   }
 
   return (
@@ -67,8 +67,8 @@ export function MilestoneGrants({ onClaimSuccess }: { onClaimSuccess?: (amt: num
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
-                    ₹{g.rewardInr} Grant
+                  <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+                    +{formatVPCoins(inrToVPCoins(g.rewardInr))} Grant
                   </Badge>
                   <span className="font-mono text-xs text-content-muted capitalize">
                     {g.milestone}
@@ -98,7 +98,7 @@ export function MilestoneGrants({ onClaimSuccess }: { onClaimSuccess?: (amt: num
                     onClick={() => handleClaim(g.id)}
                     className="bg-brand-emerald text-[#04110b] font-bold px-3 py-1 text-xs"
                   >
-                    Upload Proof (+₹{g.rewardInr})
+                    Upload Proof (+{formatVPCoins(inrToVPCoins(g.rewardInr))})
                   </Button>
                 )}
               </div>

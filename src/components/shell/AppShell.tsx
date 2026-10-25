@@ -21,8 +21,9 @@ import {
   Newspaper,
   Sparkles,
   ArrowLeft,
+  Coins,
 } from 'lucide-react';
-import { cn, formatINR, timeAgo } from '@/lib/utils';
+import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
 import { LangSwitch } from './LangSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
@@ -483,8 +484,39 @@ function SentinelDesk({ onVerify, onNavigate }: { onVerify: () => void; onNaviga
         <StatCard label="Trust score" value={profile ? `${Number(profile.trust_score).toFixed(1)}%` : '—'} accent="var(--brand-emerald)" />
         <StatCard label="Accuracy" value={accuracy !== null ? `${accuracy.toFixed(1)}%` : '—'} accent="var(--brand-sky)" />
         <StatCard label="Rank" value={rank ? `#${rank}` : '—'} accent="var(--brand-amber)" />
-        <StatCard label="Correct" value={String(profile?.correct_votes ?? 0)} accent="var(--text-primary)" />
+        <StatCard label="Sentinel Balance" value={profile ? formatVPCoins(profile.wallet_balance_vpcoins ?? inrToVPCoins(profile.wallet_balance_inr)) : '—'} accent="var(--brand-amber)" />
       </div>
+
+      {/* Sentinel Rewards Banner */}
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-4 border-brand-amber/30 bg-gradient-to-r from-bg-surface to-bg-elevated">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-amber/20 text-brand-amber">
+            <Coins size={20} className="animate-pulse" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-brand-amber uppercase tracking-wider">Weekly Sentinel Rewards</div>
+            <div className="text-sm font-bold text-content-primary">
+              {rank === 1 ? 'Rank #1 Reward: 50,000 VPcoins' : rank === 2 ? 'Rank #2 Reward: 30,000 VPcoins' : rank === 3 ? 'Rank #3 Reward: 15,000 VPcoins' : 'Weekly Prize Pool: 1,00,000 VPcoins'}
+            </div>
+            <div className="text-[11px] text-content-muted">Daily dividends pool active · Redeem in your VP Wallet</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate?.('earn')}
+            className="press-effect rounded-button glass px-3 py-1.5 text-xs font-semibold text-content-primary hover:text-brand-amber"
+          >
+            Daily Pool →
+          </button>
+          <button
+            onClick={() => onNavigate?.('wallet')}
+            className="press-effect rounded-button bg-brand-amber text-[#04110b] px-3 py-1.5 text-xs font-bold"
+          >
+            Redeem VPcoins
+          </button>
+        </div>
+      </Card>
+
       <Card className="flex items-center justify-between gap-3 p-4">
         <div>
           <div className="text-sm font-semibold text-content-primary">{profile ? tierLabel[profile.tier] : '—'}</div>

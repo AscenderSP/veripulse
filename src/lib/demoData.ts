@@ -387,11 +387,11 @@ export const DEMO_STORIES: Story[] = [
 ];
 
 export const DEMO_LEADERBOARD = [
-  { username: 'shona_verify', trust: 97.2, correct: 512, tier: 'sentinel_t1' as const },
-  { username: 'bongo_check', trust: 94.8, correct: 448, tier: 'sentinel_t1' as const },
-  { username: 'kolkata_eye', trust: 91.1, correct: 390, tier: 'sentinel_t1' as const },
-  { username: 'you_scout', trust: 82.5, correct: 134, tier: 'validator_t2' as const },
-  { username: 'newtown_news', trust: 78.3, correct: 120, tier: 'validator_t2' as const },
+  { username: 'shona_verify', trust: 97.2, correct: 512, tier: 'sentinel_t1' as const, weeklyVpCoins: 50000, totalVpCoins: 185400 },
+  { username: 'bongo_check', trust: 94.8, correct: 448, tier: 'sentinel_t1' as const, weeklyVpCoins: 30000, totalVpCoins: 142000 },
+  { username: 'kolkata_eye', trust: 91.1, correct: 390, tier: 'sentinel_t1' as const, weeklyVpCoins: 15000, totalVpCoins: 98500 },
+  { username: 'you_scout', trust: 82.5, correct: 134, tier: 'validator_t2' as const, weeklyVpCoins: 5000, totalVpCoins: 42100 },
+  { username: 'newtown_news', trust: 78.3, correct: 120, tier: 'validator_t2' as const, weeklyVpCoins: 3500, totalVpCoins: 31200 },
 ];
 
 const RAW_DEMO_PRODUCTS: Product[] = [
@@ -1666,7 +1666,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-1', title: 'Is EM Bypass waterlogged near Ruby Hospital?',
     description: 'Heavy rain reported. Need a C2PA photo from within 1 km of Ruby Hospital showing the current road condition.',
-    type: 'news_verification', rewardInr: 50, postedBy: 'VeriPulse News Desk',
+    type: 'news_verification', rewardInr: 50, rewardVpCoins: 500, postedBy: 'VeriPulse News Desk',
     location: 'Ruby Hospital, EM Bypass, Kolkata', lat: 22.5183, lng: 88.3978, radiusKm: 1,
     expiresAt: new Date(Date.now() + 3600000 * 4).toISOString(),
     status: 'open', proofRequired: 'C2PA-verified photo of current road conditions',
@@ -1675,7 +1675,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-2', title: 'Summer Thermal Test: Poco X6 Pro sustained gaming',
     description: 'Need a verified owner to run a 30-minute BGMI session at max settings in outdoor sunlight and report CPU temperature, fps stability, and battery drain.',
-    type: 'product_telemetry', rewardInr: 150, postedBy: 'VeriPulse Tech Desk',
+    type: 'product_telemetry', rewardInr: 150, rewardVpCoins: 1500, postedBy: 'VeriPulse Tech Desk',
     productId: 'poco-x6-pro-5g',
     expiresAt: new Date(Date.now() + 86400000 * 3).toISOString(),
     status: 'open', proofRequired: 'CPU-Z thermal screenshot + gameplay recording snippet',
@@ -1684,7 +1684,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-3', title: 'Samsung Park Street SC — current wait time?',
     description: 'Multiple reports of long queues at Samsung Park Street center. Need someone there now to confirm the estimated wait time for walk-in screen repair.',
-    type: 'service_center', rewardInr: 30, postedBy: 'Community',
+    type: 'service_center', rewardInr: 30, rewardVpCoins: 300, postedBy: 'Community',
     location: 'Samsung Smart Café, Park Street, Kolkata',
     expiresAt: new Date(Date.now() + 7200000).toISOString(),
     status: 'open', proofRequired: 'Photo of queue/token number + estimated wait',
@@ -1693,7 +1693,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-4', title: 'Verify: "Free laptop scheme" WhatsApp forward',
     description: 'Viral WhatsApp message claims government is distributing free laptops to students via a link. Need PIB/official source check.',
-    type: 'news_verification', rewardInr: 20, postedBy: 'Community',
+    type: 'news_verification', rewardInr: 20, rewardVpCoins: 200, postedBy: 'Community',
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
     status: 'completed', claimedBy: 'shona_verify',
     proofRequired: 'Official PIB fact-check link or government denial statement',
@@ -1702,7 +1702,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-5', title: 'Ather 450X real winter range test in Delhi fog',
     description: 'Verify the actual range of Ather 450X in Delhi winter fog (5°C) with headlight and heated grips on. Eco mode vs Warp mode comparison.',
-    type: 'product_telemetry', rewardInr: 200, postedBy: 'VeriPulse Auto Desk',
+    type: 'product_telemetry', rewardInr: 200, rewardVpCoins: 2000, postedBy: 'VeriPulse Auto Desk',
     productId: 'ather-450x-gen3',
     expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
     status: 'open', proofRequired: 'Dashboard screenshot before/after ride + GPS route',
@@ -1711,7 +1711,7 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
   {
     id: 'b-6', title: 'Confirm: New traffic diversion at Sealdah flyover',
     description: 'Reports of new one-way traffic enforcement near Sealdah station. Need current ground truth from morning commuters.',
-    type: 'news_verification', rewardInr: 40, postedBy: 'VeriPulse News Desk',
+    type: 'news_verification', rewardInr: 40, rewardVpCoins: 400, postedBy: 'VeriPulse News Desk',
     location: 'Sealdah Station, Kolkata', lat: 22.5654, lng: 88.3698, radiusKm: 0.5,
     expiresAt: new Date(Date.now() + 7200000).toISOString(),
     status: 'claimed', claimedBy: 'bongo_check',
@@ -1722,13 +1722,13 @@ export const DEMO_BOUNTIES: BountyQuest[] = [
 
 // ── Sentinel Dividend Pool Demo Data ────────────────────────────────────
 export const DEMO_DIVIDENDS: SentinelDividend[] = [
-  { date: '2026-10-24', poolAmountInr: 2450, yourShareInr: 82, accuracy: 94.2, streak: 7, streakMultiplier: 1.5, storiesReviewed: 12 },
-  { date: '2026-10-23', poolAmountInr: 2180, yourShareInr: 68, accuracy: 91.8, streak: 6, streakMultiplier: 1.25, storiesReviewed: 10 },
-  { date: '2026-10-22', poolAmountInr: 2650, yourShareInr: 95, accuracy: 96.5, streak: 5, streakMultiplier: 1.25, storiesReviewed: 14 },
-  { date: '2026-10-21', poolAmountInr: 1980, yourShareInr: 54, accuracy: 88.0, streak: 4, streakMultiplier: 1.0, storiesReviewed: 8 },
-  { date: '2026-10-20', poolAmountInr: 2300, yourShareInr: 72, accuracy: 93.3, streak: 3, streakMultiplier: 1.0, storiesReviewed: 11 },
-  { date: '2026-10-19', poolAmountInr: 2100, yourShareInr: 61, accuracy: 90.0, streak: 2, streakMultiplier: 1.0, storiesReviewed: 9 },
-  { date: '2026-10-18', poolAmountInr: 2550, yourShareInr: 78, accuracy: 95.0, streak: 1, streakMultiplier: 1.0, storiesReviewed: 13 },
+  { date: '2026-10-24', poolAmountInr: 2450, yourShareInr: 82, poolVpCoins: 24500, yourShareVpCoins: 820, accuracy: 94.2, streak: 7, streakMultiplier: 1.5, storiesReviewed: 12 },
+  { date: '2026-10-23', poolAmountInr: 2180, yourShareInr: 68, poolVpCoins: 21800, yourShareVpCoins: 680, accuracy: 91.8, streak: 6, streakMultiplier: 1.25, storiesReviewed: 10 },
+  { date: '2026-10-22', poolAmountInr: 2650, yourShareInr: 95, poolVpCoins: 26500, yourShareVpCoins: 950, accuracy: 96.5, streak: 5, streakMultiplier: 1.25, storiesReviewed: 14 },
+  { date: '2026-10-21', poolAmountInr: 1980, yourShareInr: 54, poolVpCoins: 19800, yourShareVpCoins: 540, accuracy: 88.0, streak: 4, streakMultiplier: 1.0, storiesReviewed: 8 },
+  { date: '2026-10-20', poolAmountInr: 2300, yourShareInr: 72, poolVpCoins: 23000, yourShareVpCoins: 720, accuracy: 93.3, streak: 3, streakMultiplier: 1.0, storiesReviewed: 11 },
+  { date: '2026-10-19', poolAmountInr: 2100, yourShareInr: 61, poolVpCoins: 21000, yourShareVpCoins: 610, accuracy: 90.0, streak: 2, streakMultiplier: 1.0, storiesReviewed: 9 },
+  { date: '2026-10-18', poolAmountInr: 2550, yourShareInr: 78, poolVpCoins: 25500, yourShareVpCoins: 780, accuracy: 95.0, streak: 1, streakMultiplier: 1.0, storiesReviewed: 13 },
 ];
 
 // ── Ownership Passport Demo Data ────────────────────────────────────────

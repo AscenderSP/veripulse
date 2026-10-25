@@ -1,3 +1,14 @@
+export interface LiveNewsItem {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  image: string | null;
+  publishedAt: string;
+  category: string;
+}
+
 // Shared domain types for VeriPulse.
 
 export type Lang = 'en' | 'bn' | 'hi';
@@ -70,6 +81,7 @@ export interface Profile {
   correct_votes: number;
   total_votes: number;
   wallet_balance_inr: number;
+  wallet_balance_vpcoins?: number; // 10 VPcoins = 1 INR
   upi_id: string | null;
   home_lat: number | null;
   home_lng: number | null;
@@ -449,6 +461,7 @@ export interface BountyQuest {
   description: string;
   type: BountyType;
   rewardInr: number;
+  rewardVpCoins?: number; // 10 VPcoins = 1 INR
   postedBy: string;
   location?: string;
   lat?: number;
@@ -467,10 +480,26 @@ export interface SentinelDividend {
   date: string;
   poolAmountInr: number;
   yourShareInr: number;
+  poolVpCoins?: number;
+  yourShareVpCoins?: number;
   accuracy: number;             // percentage
   streak: number;               // consecutive days
   streakMultiplier: number;     // e.g. 1.0, 1.25, 1.5
   storiesReviewed: number;
+}
+
+// ── Redeemed Vouchers (Amazon & Flipkart) ───────────────────────────
+export type VoucherVendor = 'amazon' | 'flipkart';
+export interface RedeemedVoucher {
+  id: string;
+  vendor: VoucherVendor;
+  amountInr: number;
+  vpCoinsSpent: number;
+  code: string;
+  pin?: string;
+  claimedAt: string;
+  expiresAt: string;
+  status: 'active' | 'used';
 }
 
 // ── Ownership Passport (Resale Certificate) ─────────────────────────

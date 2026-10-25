@@ -38,6 +38,21 @@ export function formatINR(n: number): string {
   }).format(n);
 }
 
+/** 10 VPcoins = 1 INR */
+export const VPCOINS_PER_INR = 10;
+
+export function inrToVPCoins(inr: number): number {
+  return Math.round(inr * VPCOINS_PER_INR);
+}
+
+export function vpCoinsToINR(coins: number): number {
+  return +(coins / VPCOINS_PER_INR).toFixed(2);
+}
+
+export function formatVPCoins(coins: number): string {
+  return `${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(coins))} VP`;
+}
+
 export function stageMeta(stage: StoryStage): {
   label: string;
   color: string;

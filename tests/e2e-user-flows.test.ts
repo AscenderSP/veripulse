@@ -19,6 +19,7 @@ import {
   DEMO_DIVIDENDS,
   DEMO_PASSPORTS,
   DEMO_FACT_CHECKS,
+  DEMO_LEADERBOARD,
 } from '../src/lib/demoData.ts';
 
 import {
@@ -41,6 +42,10 @@ import {
 
 import {
   formatINR,
+  formatVPCoins,
+  inrToVPCoins,
+  vpCoinsToINR,
+  VPCOINS_PER_INR,
   timeAgo,
 } from '../src/lib/utils.ts';
 
@@ -535,6 +540,52 @@ describe('User Flow 6: Bounties, Resale Passport & UPI Wallet Payouts', () => {
     assert.ok(currentBalance >= withdrawAmount, 'Sufficient balance for withdrawal');
     currentBalance -= withdrawAmount;
     assert.equal(currentBalance, 200.00, 'Balance accurately updated');
+  });
+
+  test('User earns VPcoins from bounties, Sentinel pool dividends, and leaderboard rank rewards (10 VP = ₹1)', () => {
+    // 10 VPcoins = 1 INR conversion rule
+    assert.equal(VPCOINS_PER_INR, 10);
+    assert.equal(inrToVPCoins(100), 1000);
+    assert.equal(vpCoinsToINR(1000), 100);
+    assert.equal(formatVPCoins(5400), '5,400 VP');
+
+    // Bounty quests award ample VPcoins
+    for (const quest of DEMO_BOUNTIES) {
+      const vp = quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr);
+      assert.ok(vp >= 50, 'Bounties have positive VPcoin reward');
+      assert.equal(vp, quest.rewardInr * 10, 'Reward is precisely 10 VP per 1 INR');
+    }
+
+    // Daily Sentinel Dividend pool awards VPcoins
+    for (const div of DEMO_DIVIDENDS) {
+      assert.ok(div.poolVpCoins && div.poolVpCoins >= 10000, 'Pool has ample VPcoins (>= 10,000)');
+      assert.ok(div.yourShareVpCoins && div.yourShareVpCoins >= 500, 'Daily share has ample VPcoins (>= 500)');
+      assert.equal(div.yourShareVpCoins, div.yourShareInr * 10);
+    }
+
+    // Leaderboard rank holders earn ample weekly VPcoins
+    assert.ok(DEMO_LEADERBOARD[0].weeklyVpCoins === 50000, 'Rank #1 receives 50,000 VPcoins/week');
+    assert.ok(DEMO_LEADERBOARD[1].weeklyVpCoins === 30000, 'Rank #2 receives 30,000 VPcoins/week');
+    assert.ok(DEMO_LEADERBOARD[2].weeklyVpCoins === 15000, 'Rank #3 receives 15,000 VPcoins/week');
+  });
+
+  test('User redeems VPcoins for Amazon and Flipkart Gift Vouchers', () => {
+    let walletVp = 5400; // 5,400 VP = ₹540
+
+    // Redeem ₹250 Amazon voucher (costs 2,500 VP)
+    const amzCost = 2500;
+    assert.ok(walletVp >= amzCost, 'Sufficient balance for ₹250 Amazon gift voucher');
+    walletVp -= amzCost;
+    assert.equal(walletVp, 2900, 'VP balance deducted after Amazon redemption');
+
+    // Redeem ₹100 Flipkart coupon (costs 1,000 VP)
+    const fkCost = 1000;
+    assert.ok(walletVp >= fkCost, 'Sufficient balance for ₹100 Flipkart coupon');
+    walletVp -= fkCost;
+    assert.equal(walletVp, 1900, 'VP balance deducted after Flipkart redemption');
+
+    // Verify converted INR
+    assert.equal(vpCoinsToINR(walletVp), 190.00, 'Wallet INR matches remaining VPcoins');
   });
 });
 

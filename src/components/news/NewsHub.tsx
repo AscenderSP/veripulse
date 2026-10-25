@@ -38,7 +38,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Card, Button, Badge, CredMeter } from '@/components/ui/primitives';
-import { cn, timeAgo, formatINR } from '@/lib/utils';
+import { cn, timeAgo, formatINR, formatVPCoins, inrToVPCoins } from '@/lib/utils';
 import { useLang } from '@/hooks/useLang';
 import { useSession } from '@/hooks/useSession';
 import { voteWeight, nextCredibility, type ConsensusVote } from '@/lib/consensus';
@@ -296,7 +296,7 @@ export function NewsHub() {
 
       setBannerNotice({
         title: 'Corroborating News Merged Into Timeline!',
-        desc: `No duplicate card was created. Your dispatch on "${matched.titles.en}" was merged into the official timeline as a co-contributor! +₹180 credited to your wallet.`,
+        desc: `No duplicate card was created. Your dispatch on "${matched.titles.en}" was merged into the official timeline as a co-contributor! +1,800 VP credited to your wallet.`,
         type: 'merge',
       });
       setFileDispatchOpen(false);
@@ -398,7 +398,7 @@ export function NewsHub() {
 
     setBannerNotice({
       title: 'Fresh News Dispatch Published!',
-      desc: '10-Minute Multi-Reporter Consensus Buffer is now active. Peer journalists can submit corroborating updates without duplicating the card. +₹320 initial bounty credited!',
+      desc: '10-Minute Multi-Reporter Consensus Buffer is now active. Peer journalists can submit corroborating updates without duplicating the card. +3,200 VP initial bounty credited!',
       type: 'buffer',
     });
   };
@@ -862,8 +862,8 @@ export function NewsHub() {
                         <span className="font-mono text-content-muted">
                           Impact: <span className="font-bold text-content-primary">{article.impactScore ?? 92}</span>
                         </span>
-                        <span className="font-mono font-bold text-brand-emerald">
-                          Earned: {formatINR(article.leadReporter.earningsInr)}
+                        <span className="font-mono font-bold text-brand-amber">
+                          Earned: {formatVPCoins(inrToVPCoins(article.leadReporter.earningsInr))}
                         </span>
                       </div>
 
@@ -946,7 +946,7 @@ export function NewsHub() {
                         <span className="text-content-muted font-mono">({totalVotes} votes)</span>
                       </div>
                       <div className="text-[10px] text-content-muted">
-                        Impact Pool: {formatINR(article.totalImpactEarningsInr ?? 450)}
+                        Impact Pool: {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
                       </div>
                     </div>
 
@@ -1593,7 +1593,7 @@ function NewsDrillDownPage({
                   </p>
                 </div>
                 <div className="text-right font-mono">
-                  <div className="text-brand-emerald font-bold">Pool: {formatINR(article.totalImpactEarningsInr ?? 450)}</div>
+                  <div className="text-brand-amber font-bold">Pool: {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}</div>
                   <div className="text-[10px] text-content-muted">Impact Score: {article.impactScore ?? 92}/100</div>
                 </div>
               </div>
@@ -1625,8 +1625,8 @@ function NewsDrillDownPage({
                       </div>
 
                       <div className="text-right">
-                        <div className="font-mono font-bold text-brand-emerald text-sm">
-                          +{dispatch.pointsAwarded} pts ({formatINR(dispatch.earningsInr)})
+                        <div className="font-mono font-bold text-brand-amber text-sm">
+                          +{formatVPCoins(inrToVPCoins(dispatch.earningsInr))}
                         </div>
                         <div className="text-[10px] text-content-muted">
                           {dispatch.matchScorePercent}% Match Score

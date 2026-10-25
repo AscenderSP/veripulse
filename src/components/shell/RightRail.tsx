@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import {
   Trophy, Activity, Rss, TrendingUp, Target, Flame, Sparkles, ArrowRight,
-  Bell, ExternalLink, Clock, Zap, ChevronRight, Newspaper, Star,
+  Bell, ExternalLink, Clock, Zap, ChevronRight, Newspaper, Star, Coins,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import { DEMO_LEADERBOARD, DEMO_BOUNTIES, DEMO_STORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { formatINR, timeAgo } from '@/lib/utils';
+import { formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
 import type { UserTier } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
-import type { LiveNewsItem } from '@/app/api/news/live/route';
+import type { LiveNewsItem } from '@/lib/types';
 
 type Section = 'feed' | 'news' | 'vault' | 'compare' | 'earn' | 'scanner' | 'passport' | 'sentinel' | 'wallet' | 'profile' | 'compose';
 
@@ -21,6 +21,8 @@ interface Leader {
   trust: number;
   correct: number;
   tier: UserTier;
+  weeklyVpCoins?: number;
+  totalVpCoins?: number;
 }
 
 interface Stats {
@@ -140,11 +142,12 @@ function buildNotifications(): NotificationItem[] {
   });
 
   DEMO_BOUNTIES.filter((b) => b.status === 'open').slice(0, 2).forEach((b) => {
+    const vp = b.rewardVpCoins ?? inrToVPCoins(b.rewardInr);
     items.push({
       id: `notif-bounty-${b.id}`,
       type: 'bounty',
       title: b.title,
-      detail: `+₹${b.rewardInr} reward`,
+      detail: `+${formatVPCoins(vp)} reward`,
       time: b.createdAt,
       section: 'earn',
       articleId: b.id,
@@ -303,24 +306,29 @@ function ActiveBountiesWidget({ onNavigate }: { onNavigate?: (s: Section) => voi
         </div>
 
         <div className="space-y-2 text-xs">
-          {openBounties.map((b) => (
-            <button
-              key={b.id}
-              onClick={() => onNavigate?.('earn')}
-              className="press-effect w-full rounded-button glass p-2.5 space-y-1 transition-all duration-200 hover:bg-bg-elevated/30 text-left group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-content-primary line-clamp-1 group-hover:text-brand-emerald transition-colors">{b.title}</span>
-                <span className="font-mono font-black text-brand-emerald shrink-0 ml-1" style={{ textShadow: '0 0 8px var(--brand-emerald-glow)' }}>
-                  +₹{b.rewardInr}
-                </span>
-              </div>
-              <div className="text-[10px] text-content-muted flex items-center justify-between">
-                <span>{b.location ? b.location.split(',')[0] : t('onlineCheck', lang)}</span>
-                <span className="text-brand-sky font-semibold">{t('available', lang)}</span>
-              </div>
-            </button>
-          ))}
+          {openBounties.map((b) => {
+            const vpReward = b.rewardVpCoins ?? inrToVPCoins(b.rewardInr);
+            return (
+              <button
+                key={b.id}
+                onClick={() => onNavigate?.('earn')}
+                className="press-effect w-full rounded-button glass p-2.5 space-y-1 transition-all duration-200 hover:bg-bg-elevated/30 text-left group"
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="font-bold text-content-primary line-clamp-1 group-hover:text-brand-emerald transition-colors">{b.title}</span>
+                  <div className="text-right shrink-0 ml-1">
+                    <span className="font-mono font-black text-brand-amber block" style={{ textShadow: '0 0 8px rgba(245,158,11,0.3)' }}>
+                      +{formatVPCoins(vpReward)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-[10px] text-content-muted flex items-center justify-between">
+                  <span>{b.location ? b.location.split(',')[0] : t('onlineCheck', lang)}</span>
+                  <span className="text-brand-sky font-semibold">{t('available', lang)}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </Card>
@@ -331,9 +339,11 @@ function ActiveBountiesWidget({ onNavigate }: { onNavigate?: (s: Section) => voi
 
 function Leaderboard({ leaders, onNavigate }: { leaders: Leader[]; onNavigate?: (s: Section) => void }) {
   const { lang } = useLang();
+  const rankWeeklyRewards = [50000, 30000, 15000, 5000, 3500];
+
   return (
     <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="flex items-center gap-2 text-sm font-bold text-content-primary">
           <Trophy size={15} className="text-brand-amber" style={{ filter: 'drop-shadow(0 0 4px var(--brand-amber))' }} /> {t('sentinelLeaderboard', lang)}
         </h3>
@@ -344,34 +354,55 @@ function Leaderboard({ leaders, onNavigate }: { leaders: Leader[]; onNavigate?: 
           {t('viewAll', lang)} <ArrowRight size={10} />
         </button>
       </div>
+
+      <div className="mb-3 flex items-center justify-between rounded-button bg-brand-amber/10 border border-brand-amber/30 px-2.5 py-1 text-[10px]">
+        <span className="text-content-secondary">Weekly Sentinel Pool:</span>
+        <span className="font-mono font-extrabold text-brand-amber">1,00,000 VPcoins</span>
+      </div>
+
       {leaders.length === 0 && <p className="text-xs text-content-muted">{t('noSentinels', lang)}</p>}
       <div className="space-y-2">
-        {leaders.map((u, i) => (
-          <button
-            key={u.username}
-            onClick={() => onNavigate?.('sentinel')}
-            className="press-effect w-full flex items-center gap-3 rounded-button p-1.5 text-sm transition-all duration-200 hover:bg-glass-bg text-left group"
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full text-center font-mono text-xs font-bold"
-              style={{
-                background: i === 0 ? 'var(--brand-amber)' : i === 1 ? 'var(--border-strong)' : i === 2 ? 'rgba(205,127,50,0.3)' : 'var(--glass-bg)',
-                color: i < 2 ? '#04110b' : 'var(--text-secondary)',
-              }}
+        {leaders.map((u, i) => {
+          const weeklyReward = u.weeklyVpCoins ?? rankWeeklyRewards[i] ?? 2000;
+          return (
+            <button
+              key={u.username}
+              onClick={() => onNavigate?.('sentinel')}
+              className="press-effect w-full flex items-center gap-2.5 rounded-button p-1.5 text-sm transition-all duration-200 hover:bg-glass-bg text-left group"
             >
-              {i + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-content-primary group-hover:text-brand-amber transition-colors">@{u.username}</div>
-              <div className="text-[10px] text-content-muted">{u.correct} {t('accurateChecks', lang)}</div>
-            </div>
-            <Badge
-              color={u.tier === 'sentinel_t1' ? 'var(--brand-emerald)' : 'var(--brand-sky)'}
-              bg={u.tier === 'sentinel_t1' ? 'var(--brand-emerald-glow)' : 'rgba(14,165,233,0.12)'}
-            >
-              {u.trust.toFixed(1)}%
-            </Badge>
-          </button>
-        ))}
+              <span className="flex h-6 w-6 items-center justify-center rounded-full text-center font-mono text-xs font-bold shrink-0"
+                style={{
+                  background: i === 0 ? 'var(--brand-amber)' : i === 1 ? 'var(--border-strong)' : i === 2 ? 'rgba(205,127,50,0.3)' : 'var(--glass-bg)',
+                  color: i < 2 ? '#04110b' : 'var(--text-secondary)',
+                }}
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-content-primary group-hover:text-brand-amber transition-colors">@{u.username}</div>
+                <div className="flex items-center gap-1.5 text-[10px] text-content-muted">
+                  <span>{u.correct} {t('accurateChecks', lang)}</span>
+                  <span>·</span>
+                  <span className="text-brand-amber font-mono font-bold flex items-center gap-0.5">
+                    <Coins size={10} /> {formatVPCoins(u.totalVpCoins ?? 35000)}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
+                <span className="font-mono text-[11px] font-bold text-brand-amber">
+                  +{formatVPCoins(weeklyReward)}/wk
+                </span>
+                <Badge
+                  color={u.tier === 'sentinel_t1' ? 'var(--brand-emerald)' : 'var(--brand-sky)'}
+                  bg={u.tier === 'sentinel_t1' ? 'var(--brand-emerald-glow)' : 'rgba(14,165,233,0.12)'}
+                >
+                  {u.trust.toFixed(1)}%
+                </Badge>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </Card>
   );
@@ -391,8 +422,8 @@ function RevenueTicker({ total, onNavigate }: { total: number | null; onNavigate
           <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-content-primary group-hover:text-brand-emerald transition-colors">
             <TrendingUp size={15} className="text-brand-emerald" /> {t('distributedThisMonth', lang)}
           </h3>
-          <div className="font-mono text-2xl font-bold gradient-text stat-value">{total === null ? '—' : formatINR(total)}</div>
-          <p className="mt-1 text-[11px] text-content-muted">{t('instantUpiPayouts', lang)}</p>
+          <div className="font-mono text-2xl font-bold gradient-text stat-value">{total === null ? '—' : formatVPCoins(inrToVPCoins(total))}</div>
+          <p className="mt-1 text-[11px] text-content-muted">Distributed in VPcoins to reviewers &amp; Sentinel pool</p>
         </button>
         <div className="mt-3 space-y-1.5 text-[11px]">
           <Split label="Founder" pct={70} color="var(--brand-emerald)" />

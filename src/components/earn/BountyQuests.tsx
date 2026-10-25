@@ -18,10 +18,11 @@ import {
   Share2,
   Check,
   User,
+  Coins,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import { DEMO_BOUNTIES } from '@/lib/demoData';
-import { formatINR } from '@/lib/utils';
+import { formatINR, formatVPCoins, inrToVPCoins, vpCoinsToINR } from '@/lib/utils';
 import { useLang } from '@/hooks/useLang';
 import type { BountyQuest, BountyType } from '@/lib/types';
 
@@ -118,15 +119,15 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
             <span className="text-xs font-bold uppercase tracking-wider text-brand-emerald">
               Citizen Micro-Earnings
             </span>
-            <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
-              ₹ Instant UPI
+            <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+              <Coins size={11} className="mr-1" /> Citizen VP Rewards
             </Badge>
           </div>
           <h3 className="mt-1 text-base font-extrabold text-content-primary">
             Hyperlocal &quot;Verify This&quot; Bounty Quests
           </h3>
           <p className="text-xs text-content-muted">
-            Earn real money by verifying rumors, snapping on-ground road condition photos, or recording real device telemetry.
+            Earn ample VPcoins by verifying rumors, snapping on-ground road condition photos, or recording real device telemetry. Redeem in your VP Wallet.
           </p>
         </div>
 
@@ -180,91 +181,96 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
 
       {/* Bounty Cards List */}
       <div className="space-y-3">
-        {filtered.map((quest) => (
-          <Card
-            key={quest.id}
-            onClick={() => setSelectedBounty(quest)}
-            className="group p-4 space-y-3 cursor-pointer hover:border-brand-emerald/40 hover:bg-bg-elevated/40 transition-all"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
-                    ₹{quest.rewardInr} Payout
-                  </Badge>
-                  <span className="text-[11px] font-semibold text-content-muted uppercase">
-                    {quest.type.replace('_', ' ')}
-                  </span>
-                  {quest.status === 'completed' && (
-                    <Badge color="var(--brand-sky)" bg="rgba(14,165,233,0.12)">
-                      Completed
+        {filtered.map((quest) => {
+          const rewardVp = quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr);
+          return (
+            <Card
+              key={quest.id}
+              onClick={() => setSelectedBounty(quest)}
+              className="group p-4 space-y-3 cursor-pointer hover:border-brand-emerald/40 hover:bg-bg-elevated/40 transition-all"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+                      +{formatVPCoins(rewardVp)}
                     </Badge>
-                  )}
+                    <span className="text-[11px] font-semibold text-content-muted uppercase">
+                      {quest.type.replace('_', ' ')}
+                    </span>
+                    {quest.status === 'completed' && (
+                      <Badge color="var(--brand-sky)" bg="rgba(14,165,233,0.12)">
+                        Completed
+                      </Badge>
+                    )}
+                  </div>
+
+                  <h4 className="mt-1.5 text-sm font-bold text-content-primary leading-snug group-hover:text-brand-emerald transition-colors">
+                    {quest.title}
+                  </h4>
                 </div>
 
-                <h4 className="mt-1.5 text-sm font-bold text-content-primary leading-snug group-hover:text-brand-emerald transition-colors">
-                  {quest.title}
-                </h4>
+                <div className="text-right">
+                  <div className="font-mono text-lg font-black text-brand-amber">
+                    +{formatVPCoins(rewardVp)}
+                  </div>
+                </div>
               </div>
 
-              <div className="font-mono text-lg font-black text-brand-emerald">
-                +{formatINR(quest.rewardInr)}
-              </div>
-            </div>
+              <p className="text-xs text-content-secondary leading-relaxed line-clamp-2">
+                {quest.description}
+              </p>
 
-            <p className="text-xs text-content-secondary leading-relaxed line-clamp-2">
-              {quest.description}
-            </p>
-
-            {/* Proof requirement box */}
-            <div className="rounded bg-bg-surface p-2 text-[11px] border border-[var(--border-subtle)] space-y-1">
-              <div className="font-semibold text-content-muted flex items-center gap-1">
-                <Camera size={12} className="text-brand-sky" /> Proof Required:
-              </div>
-              <div className="text-content-secondary truncate">{quest.proofRequired}</div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-              <div className="flex items-center gap-3 text-[11px] text-content-muted">
-                {quest.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin size={11} /> {quest.location}
-                  </span>
-                )}
-                <span>Posted by {quest.postedBy}</span>
+              {/* Proof requirement box */}
+              <div className="rounded bg-bg-surface p-2 text-[11px] border border-[var(--border-subtle)] space-y-1">
+                <div className="font-semibold text-content-muted flex items-center gap-1">
+                  <Camera size={12} className="text-brand-sky" /> Proof Required:
+                </div>
+                <div className="text-content-secondary truncate">{quest.proofRequired}</div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedBounty(quest);
-                  }}
-                  variant="outline"
-                  className="px-2.5 py-1 text-xs"
-                >
-                  View Details
-                </Button>
-                {quest.status === 'open' && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                <div className="flex items-center gap-3 text-[11px] text-content-muted">
+                  {quest.location && (
+                    <span className="flex items-center gap-1">
+                      <MapPin size={11} /> {quest.location}
+                    </span>
+                  )}
+                  <span>Posted by {quest.postedBy}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedBounty(quest);
                     }}
-                    className="bg-brand-emerald text-[#04110b] font-bold px-3 py-1 text-xs"
+                    variant="outline"
+                    className="px-2.5 py-1 text-xs"
                   >
-                    Claim (+₹{quest.rewardInr})
+                    View Details
                   </Button>
-                )}
-                {quest.status === 'completed' && (
-                  <span className="text-[11px] font-semibold text-brand-sky flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Claimed by @{quest.claimedBy}
-                  </span>
-                )}
+                  {quest.status === 'open' && (
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedBounty(quest);
+                      }}
+                      className="bg-brand-emerald text-[#04110b] font-bold px-3 py-1 text-xs"
+                    >
+                      Claim (+{formatVPCoins(rewardVp)})
+                    </Button>
+                  )}
+                  {quest.status === 'completed' && (
+                    <span className="text-[11px] font-semibold text-brand-sky flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Claimed by @{quest.claimedBy}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -330,29 +336,36 @@ function BountyDrillDownPage({
 
       {/* ── Quest Header Card ── */}
       <Card className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
-              ₹{quest.rewardInr} Instant UPI
-            </Badge>
-            <Badge color="var(--brand-sky)" bg="rgba(14,165,233,0.12)">
-              {quest.type.replace('_', ' ').toUpperCase()}
-            </Badge>
-            {submitted || quest.status === 'completed' ? (
-              <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
-                <CheckCircle2 size={12} className="mr-1" /> Claim Verified
-              </Badge>
-            ) : (
-              <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
-                <Clock size={12} className="mr-1" /> Open for Verification
-              </Badge>
-            )}
-          </div>
+        {(() => {
+          const rewardVp = quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr);
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+                  +{formatVPCoins(rewardVp)} Reward
+                </Badge>
+                <Badge color="var(--brand-sky)" bg="rgba(14,165,233,0.12)">
+                  {quest.type.replace('_', ' ').toUpperCase()}
+                </Badge>
+                {submitted || quest.status === 'completed' ? (
+                  <Badge color="var(--brand-emerald)" bg="var(--brand-emerald-glow)">
+                    <CheckCircle2 size={12} className="mr-1" /> Claim Verified
+                  </Badge>
+                ) : (
+                  <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+                    <Clock size={12} className="mr-1" /> Open for Verification
+                  </Badge>
+                )}
+              </div>
 
-          <div className="font-mono text-2xl font-black text-brand-emerald">
-            +{formatINR(quest.rewardInr)}
-          </div>
-        </div>
+              <div className="text-right">
+                <div className="font-mono text-2xl font-black text-brand-amber">
+                  +{formatVPCoins(rewardVp)}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-content-primary leading-tight">
@@ -401,7 +414,7 @@ function BountyDrillDownPage({
               Proof Submitted & Bounty Claimed!
             </h3>
             <p className="text-xs text-content-secondary max-w-md mx-auto">
-              Your submission has been cryptographically recorded on the VeriPulse ledger. +₹{quest.rewardInr} has been credited to your citizen balance.
+              Your submission has been cryptographically recorded on the VeriPulse ledger. +{formatVPCoins(quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr))} has been credited to your citizen wallet balance.
             </p>
             <div className="pt-2">
               <Button onClick={onBack} className="bg-brand-emerald text-[#04110b] font-bold text-xs px-4 py-2">
@@ -431,14 +444,14 @@ function BountyDrillDownPage({
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <span className="text-[11px] text-content-muted">
-                ⚡ Reward ₹{quest.rewardInr} will be transferred directly to your wallet upon verification.
+                ⚡ Reward +{formatVPCoins(quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr))} will be transferred directly to your VP wallet upon verification.
               </span>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" type="button" onClick={onBack} className="text-xs px-3 py-1.5">
                   Cancel
                 </Button>
                 <Button type="submit" className="bg-brand-emerald text-[#04110b] font-bold text-xs px-4 py-2 flex items-center gap-1.5">
-                  <Camera size={14} /> Submit Proof & Collect ₹{quest.rewardInr}
+                  <Camera size={14} /> Submit Proof & Collect +{formatVPCoins(quest.rewardVpCoins ?? inrToVPCoins(quest.rewardInr))}
                 </Button>
               </div>
             </div>
@@ -584,8 +597,10 @@ function CreateBountyPage({
           </div>
 
           <div>
-            <label className="text-content-secondary font-semibold">Reward Amount (₹ INR)</label>
-            <div className="mt-1.5 flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-content-secondary font-semibold">Reward Amount (VPcoins)</label>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
               {rewardPresets.map((amt) => (
                 <button
                   key={amt}
@@ -597,17 +612,21 @@ function CreateBountyPage({
                       : 'bg-bg-elevated text-content-muted hover:text-content-primary'
                   }`}
                 >
-                  ₹{amt}
+                  +{formatVPCoins(inrToVPCoins(amt))}
                 </button>
               ))}
-              <input
-                type="number"
-                min="10"
-                max="2000"
-                value={reward}
-                onChange={(e) => setReward(Number(e.target.value))}
-                className="w-20 rounded-button border border-[var(--border-subtle)] bg-bg-surface p-1.5 text-center font-mono text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="100"
+                  step="50"
+                  max="20000"
+                  value={reward * 10}
+                  onChange={(e) => setReward(Math.max(10, Math.round(Number(e.target.value) / 10)))}
+                  className="w-24 rounded-button border border-[var(--border-subtle)] bg-bg-surface p-1.5 text-center font-mono text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
+                />
+                <span className="text-xs text-brand-amber font-mono font-bold">VP</span>
+              </div>
             </div>
           </div>
 
@@ -616,7 +635,7 @@ function CreateBountyPage({
               Cancel
             </Button>
             <Button type="submit" className="bg-brand-emerald text-[#04110b] font-bold text-xs px-4 py-2">
-              Fund & Launch Bounty (₹{reward})
+              Fund & Launch Bounty (+{formatVPCoins(inrToVPCoins(reward))})
             </Button>
           </div>
         </form>
