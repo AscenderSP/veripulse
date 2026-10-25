@@ -37,9 +37,9 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
 });
 
 // ── minimal RSS parse (title + description of first N items) ──
-function parseRss(xml: string): { title: string; description: string }[] {
+function parseRss(xml: string, limit = 1): { title: string; description: string }[] {
   const items: { title: string; description: string }[] = [];
-  const blocks = xml.split(/<item[\s>]/i).slice(1);
+  const blocks = xml.split(/<item[\s>]/i).slice(1, limit + 1);
   for (const b of blocks) {
     const title = clean(match(b, /<title>([\s\S]*?)<\/title>/i));
     const desc = clean(match(b, /<description>([\s\S]*?)<\/description>/i));
@@ -127,13 +127,18 @@ Deno.serve(async () => {
   const sources: { name: string; ok: boolean }[] = [];
   const startedAt = new Date().toISOString();
 
-  for (const feed of FEEDS) {
+  // Rotate across news wire sources round-robin (1 fresh item per 30-min run)
+  // This keeps execution under 8 seconds and well within Supabase Edge compute limits.
+  const feedIndex = Math.floor(Date.now() / (30 * 60 * 1000)) % FEEDS.length;
+  const activeFeeds = [FEEDS[feedIndex]];
+
+  for (const feed of activeFeeds) {
     try {
       const res = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(`${feed.name}: HTTP ${res.status}`);
       const xml = await res.text();
       sources.push({ name: feed.name, ok: true });
-      const items = parseRss(xml).slice(0, Math.ceil(MAX_PER_RUN / FEEDS.length));
+      const items = parseRss(xml, 1);
 
       for (const it of items) {
         try {
