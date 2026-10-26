@@ -47,7 +47,8 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
-import { DEMO_PRODUCTS, DEMO_HEAD_TO_HEAD_BATTLES } from '@/lib/demoData';
+import { DEMO_PRODUCTS, DEMO_HEAD_TO_HEAD_BATTLES, isSupabaseConfigured } from '@/lib/demoData';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiUrl } from '@/lib/api';
 import { formatINR, cn } from '@/lib/utils';
 import type { Product, ProductReview, ProductCategory, ProductMetricScores, HeadToHeadBattle } from '@/lib/types';
@@ -93,6 +94,26 @@ export function ProductMatrix() {
       }
     }
   }, [products]);
+
+  // Load live products from Supabase
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const sb = getSupabaseBrowserClient();
+    const loadLiveProducts = async () => {
+      try {
+        const { data, error } = await sb.from('products').select('*');
+        if (!error && data && data.length > 0) {
+          setProducts((prev) => {
+            const liveMap = new Map(data.map((p: any) => [p.id, p]));
+            return prev.map((p) => (liveMap.has(p.id) ? { ...p, ...liveMap.get(p.id) } : p));
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadLiveProducts();
+  }, []);
 
   // Filtering states
   const [searchQuery, setSearchQuery] = useState('');
