@@ -43,14 +43,72 @@ import { useLang } from '@/hooks/useLang';
 import { useSession } from '@/hooks/useSession';
 import { voteWeight, nextCredibility, type ConsensusVote } from '@/lib/consensus';
 import { AudioReadout } from '@/components/feed/AudioReadout';
-import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES } from '@/lib/demoData';
+import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   findDuplicateNews,
   synthesizeMultiReporterSummary,
   calculateImpactEarnings,
 } from '@/lib/journalism';
 import { t } from '@/lib/translations';
-import type { NewsCategory, NewsArticle, Lang, ReporterDispatch } from '@/lib/types';
+import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
+
+function mapStoryToArticle(s: any): NewsArticle {
+  const catRaw = (s.category || 'Politics').toLowerCase();
+  let category: NewsCategory = 'politics';
+  if (catRaw.includes('biz') || catRaw.includes('finance') || catRaw.includes('econ') || catRaw.includes('market')) {
+    category = 'business';
+  } else if (catRaw.includes('tech') || catRaw.includes('electronic') || catRaw.includes('sci')) {
+    category = 'tech';
+  } else if (catRaw.includes('health') || catRaw.includes('weather') || catRaw.includes('environ') || catRaw.includes('civic')) {
+    category = 'health';
+  } else if (catRaw.includes('sport') || catRaw.includes('entertain')) {
+    category = 'entertainment';
+  }
+
+  const enTitle = typeof s.titles === 'object' ? s.titles?.en : s.titles;
+  const bnTitle = typeof s.titles === 'object' ? s.titles?.bn : s.titles;
+  const hiTitle = typeof s.titles === 'object' ? s.titles?.hi : s.titles;
+
+  const enSummary = typeof s.summaries === 'object' ? s.summaries?.en : s.summaries;
+  const bnSummary = typeof s.summaries === 'object' ? s.summaries?.bn : s.summaries;
+  const hiSummary = typeof s.summaries === 'object' ? s.summaries?.hi : s.summaries;
+
+  return {
+    id: s.id,
+    category,
+    categoryName: s.category || 'National News',
+    tags: [s.category || 'News', s.location_name || 'India', s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel'],
+    titles: {
+      en: enTitle || 'Live Wire Update',
+      bn: bnTitle || enTitle || 'লাইভ আপডেট',
+      hi: hiTitle || enTitle || 'लाइव अपडेट',
+    },
+    summaries: {
+      en: enSummary || '',
+      bn: bnSummary || enSummary || '',
+      hi: hiSummary || enSummary || '',
+    },
+    source: s.source === 'rss' ? 'Verified Wire Agency' : 'Citizen Sentinel',
+    publishedAt: s.created_at || new Date().toISOString(),
+    mediaUrl: s.media_url || undefined,
+    c2paVerified: Boolean(s.c2pa_verified),
+    credibilityScore: Number(s.credibility_score) || 82,
+    aiProbabilityScore: Number(s.ai_probability_score) || 8,
+    readingTimeMinutes: 1,
+    locationName: s.location_name || 'National',
+    keyTakeaways: [
+      enSummary ? enSummary.slice(0, 100) + '...' : 'Verified wire news dispatch',
+      `Source: ${s.source === 'rss' ? 'Wire Agency Wire' : 'Verified Sentinel'}`,
+      `Credibility Index: ${s.credibility_score || 82}%`,
+    ],
+    realVotes: 12,
+    hoaxVotes: 1,
+    contextVotes: 1,
+    stage: s.rollout_stage,
+    detailedAnalysis: enSummary || undefined,
+  };
+}
 
 export function NewsHub() {
   const { lang } = useLang();
@@ -64,6 +122,47 @@ export function NewsHub() {
 
   // Live state of news articles (with dynamic credibility & votes)
   const [articles, setArticles] = useState<NewsArticle[]>(DEMO_NEWS_ARTICLES);
+
+  // Load real-time news stories directly from Supabase
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const sb = getSupabaseBrowserClient();
+
+    const loadLiveStories = async () => {
+      try {
+        const { data, error } = await sb
+          .from('stories')
+          .select('*')
+          .eq('rollout_stage', 'public')
+          .order('created_at', { ascending: false })
+          .limit(40);
+
+        if (!error && data && data.length > 0) {
+          const live = data.map(mapStoryToArticle);
+          setArticles((prev) => {
+            const liveIds = new Set(live.map((a) => a.id));
+            const remaining = prev.filter((a) => !liveIds.has(a.id));
+            return [...live, ...remaining];
+          });
+        }
+      } catch {
+        // keep existing articles on network error
+      }
+    };
+
+    loadLiveStories();
+
+    const channel = sb
+      .channel('news_hub_live_stream')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, () => {
+        loadLiveStories();
+      })
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, []);
   // User's active votes: articleId -> ConsensusVote
   const [userVotes, setUserVotes] = useState<Record<string, ConsensusVote>>({});
   // Selected article for drill-down modal

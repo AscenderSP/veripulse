@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { LiveNewsItem } from '@/lib/types';
+import { isSupabaseConfigured } from '@/lib/demoData';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 export type { LiveNewsItem };
 
 const FALLBACK_NEWS: LiveNewsItem[] = [
@@ -56,7 +58,34 @@ const FALLBACK_NEWS: LiveNewsItem[] = [
 ];
 
 export async function GET() {
-  // Try fetching from Currents API (free, no key required for limited use)
+  // 1. Try fetching directly from our live Supabase database
+  if (isSupabaseConfigured()) {
+    try {
+      const sb = await createSupabaseServerClient();
+      const { data } = await sb
+        .from('stories')
+        .select('*')
+        .eq('rollout_stage', 'public')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (data && data.length > 0) {
+        const items: LiveNewsItem[] = data.map((s: any) => ({
+          id: s.id,
+          title: typeof s.titles === 'object' ? (s.titles?.en || s.titles?.bn || s.titles?.hi) : s.titles,
+          description: typeof s.summaries === 'object' ? (s.summaries?.en || s.summaries?.bn || s.summaries?.hi || '').slice(0, 200) : s.summaries,
+          url: s.media_url || '#',
+          source: s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel',
+          image: s.media_url || null,
+          publishedAt: s.created_at,
+          category: (s.category || 'general').toLowerCase(),
+        }));
+        return NextResponse.json({ items, source: 'live' });
+      }
+    } catch {
+      // fall through to external feeds
+    }
+  }
   try {
     const res = await fetch(
       'https://api.currentsapi.services/v1/latest-news?language=en&country=IN',
