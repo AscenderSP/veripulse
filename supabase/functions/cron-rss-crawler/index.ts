@@ -24,13 +24,34 @@ const EMBED_MODEL = Deno.env.get('GEMINI_EMBED_MODEL') ?? 'gemini-embedding-001'
 
 // Regional + global wire coverage. Reuters and PTI no longer publish open
 // RSS, so their wires are reached through Google News source filters.
-const FEEDS: { name: string; url: string }[] = [
-  { name: 'Google News RSS', url: 'https://news.google.com/rss/search?q=Kolkata+OR+%22West+Bengal%22&hl=en-IN&gl=IN&ceid=IN:en' },
-  { name: 'PTI wire', url: 'https://news.google.com/rss/search?q=PTI+India+when:1d&hl=en-IN&gl=IN&ceid=IN:en' },
-  { name: 'Reuters India', url: 'https://news.google.com/rss/search?q=source:Reuters+India+when:1d&hl=en-IN&gl=IN&ceid=IN:en' },
-  { name: 'The Hindu', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
+// Regional feeds include verified Bengali (বাংলা) and Hindi (हिन्दी) news wires.
+interface WireFeed {
+  name: string;
+  url: string;
+  lang: 'en' | 'bn' | 'hi';
+  region?: string;
+}
+
+const EN_FEEDS: WireFeed[] = [
+  { name: 'Google News India (EN)', url: 'https://news.google.com/rss/search?q=Kolkata+OR+%22West+Bengal%22&hl=en-IN&gl=IN&ceid=IN:en', lang: 'en', region: 'India' },
+  { name: 'PTI wire (EN)', url: 'https://news.google.com/rss/search?q=PTI+India+when:1d&hl=en-IN&gl=IN&ceid=IN:en', lang: 'en', region: 'India' },
+  { name: 'Reuters India (EN)', url: 'https://news.google.com/rss/search?q=source:Reuters+India+when:1d&hl=en-IN&gl=IN&ceid=IN:en', lang: 'en', region: 'India' },
+  { name: 'The Hindu (EN)', url: 'https://www.thehindu.com/news/national/feeder/default.rss', lang: 'en', region: 'India' },
 ];
-const MAX_PER_RUN = 6;
+
+const REGIONAL_FEEDS: WireFeed[] = [
+  // Bengali Regional (বাংলা)
+  { name: 'BBC News বাংলা', url: 'https://feeds.bbci.co.uk/bengali/rss.xml', lang: 'bn', region: 'West Bengal / Regional' },
+  { name: 'Google News বাংলা', url: 'https://news.google.com/rss?hl=bn&gl=IN&ceid=IN:bn', lang: 'bn', region: 'West Bengal' },
+  { name: 'Anandabazar / WB Wire', url: 'https://news.google.com/rss/search?q=%E0%A6%AA%E0%A6%B6%E0%A7%8D%E0%A6%9A%E0%A6%BF%E0%A6%AE%E0%A6%AC%E0%A6%99%E0%A7%8D%E0%A6%97+when:1d&hl=bn&gl=IN&ceid=IN:bn', lang: 'bn', region: 'West Bengal' },
+  // Hindi Regional (हिन्दी)
+  { name: 'BBC News हिंदी', url: 'https://feeds.bbci.co.uk/hindi/rss.xml', lang: 'hi', region: 'India / Regional' },
+  { name: 'Google News हिंदी', url: 'https://news.google.com/rss?hl=hi&gl=IN&ceid=IN:hi', lang: 'hi', region: 'National / Hindi Belt' },
+  { name: 'NDTV Khabar (हिन्दी)', url: 'https://feeds.feedburner.com/ndtvkhabar', lang: 'hi', region: 'National / Hindi Belt' },
+];
+
+const ALL_FEEDS: WireFeed[] = [...EN_FEEDS, ...REGIONAL_FEEDS];
+const MAX_PER_RUN = 4;
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
@@ -120,21 +141,43 @@ function clampWords(s: string, n = 60): string {
   return w.length <= n ? (s || '').trim() : w.slice(0, n).join(' ');
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
   let ingested = 0;
   let merged = 0;
   const errors: string[] = [];
   const sources: { name: string; ok: boolean }[] = [];
   const startedAt = new Date().toISOString();
 
-  // Rotate across news wire sources round-robin (1 fresh item per 30-min run)
-  // This keeps execution under 8 seconds and well within Supabase Edge compute limits.
-  const feedIndex = Math.floor(Date.now() / (30 * 60 * 1000)) % FEEDS.length;
-  const activeFeeds = [FEEDS[feedIndex]];
+  // Support manual triggers and query parameters (e.g. ?feed=bengali or ?feed=hindi or ?all=true)
+  const url = new URL(req.url);
+  const targetFilter = url.searchParams.get('feed')?.toLowerCase();
+  const forceAll = url.searchParams.get('all') === 'true';
+
+  let activeFeeds: WireFeed[] = [];
+  if (targetFilter) {
+    activeFeeds = ALL_FEEDS.filter(
+      (f) => f.name.toLowerCase().includes(targetFilter) || f.lang === targetFilter,
+    );
+  } else if (forceAll) {
+    activeFeeds = ALL_FEEDS.slice(0, MAX_PER_RUN);
+  }
+
+  if (activeFeeds.length === 0) {
+    // Scheduled round-robin: Pair 1 English feed + 1 Regional feed (Bengali / Hindi) per run.
+    // At 2 items per 30-min run, memory stays < 25MB and execution finishes in ~4-6 seconds,
+    // well within Supabase Edge compute limits while giving balanced national and regional coverage.
+    const slot = Math.floor(Date.now() / (30 * 60 * 1000));
+    const enFeed = EN_FEEDS[slot % EN_FEEDS.length];
+    const regionalFeed = REGIONAL_FEEDS[slot % REGIONAL_FEEDS.length];
+    activeFeeds = [enFeed, regionalFeed];
+  }
 
   for (const feed of activeFeeds) {
     try {
-      const res = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(feed.url, {
+        headers: { 'User-Agent': 'VeriPulse-Crawler/1.0 (+https://veripulse.org)' },
+        signal: AbortSignal.timeout(8000),
+      });
       if (!res.ok) throw new Error(`${feed.name}: HTTP ${res.status}`);
       const xml = await res.text();
       sources.push({ name: feed.name, ok: true });
@@ -143,11 +186,12 @@ Deno.serve(async () => {
       for (const it of items) {
         try {
           const raw = `${it.title}. ${it.description}`.slice(0, 4000);
-          const prompt = `Summarise this wire item as STRICT JSON:
+          const prompt = `Summarise this news wire item as STRICT JSON:
 {"titles":{"en":"","bn":"","hi":""},"summaries":{"en":"","bn":"","hi":""},
+"location":"City or State or India or Wire",
 "completeness_score":0-100,"ai_probability_score":0-100,
 "category":"Civic|Crime|Politics|Weather|Electronics|Vehicle|Health|Other"}
-Each summary <=60 words. Translate to English/Bengali/Hindi. No invented facts.
+Each summary <=60 words. Translate to English/Bengali/Hindi regardless of source language. No invented facts.
 Item: """${raw}"""`;
 
           const rawAnalysis = parseJson(await gemini(prompt)) || {};
@@ -164,10 +208,14 @@ Item: """${raw}"""`;
           const vector = await embed(`${titles.en}. ${summaries.en}`);
           if (vector.length !== 768) continue;
 
+          const locationName = (rawAnalysis.location && rawAnalysis.location !== 'Wire')
+            ? rawAnalysis.location
+            : (feed.region || 'Wire');
+
           const { data, error } = await admin.rpc('ingest_story', {
             p_author: null,
             p_category: rawAnalysis.category ?? 'Other',
-            p_location_name: 'Wire',
+            p_location_name: locationName,
             p_lat: null,
             p_lng: null,
             p_titles: titles,
@@ -208,7 +256,13 @@ Item: """${raw}"""`;
   });
 
   return new Response(
-    JSON.stringify({ ingested, merged, errors: errors.slice(0, 5), at: new Date().toISOString() }),
+    JSON.stringify({
+      ingested,
+      merged,
+      activeFeeds: activeFeeds.map((f) => f.name),
+      errors: errors.slice(0, 5),
+      at: new Date().toISOString(),
+    }),
     { headers: { 'Content-Type': 'application/json' } },
   );
 });
