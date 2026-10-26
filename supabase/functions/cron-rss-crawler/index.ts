@@ -53,6 +53,33 @@ const REGIONAL_FEEDS: WireFeed[] = [
 const ALL_FEEDS: WireFeed[] = [...EN_FEEDS, ...REGIONAL_FEEDS];
 const MAX_PER_RUN = 4;
 
+// ── Reference Images for Categories (Fallback when unsubmitted/unverified) ──
+const CATEGORY_REF_IMAGES: Record<string, string> = {
+  politics: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=800&q=80',
+  civic: 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=800&q=80',
+  business: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=800&q=80',
+  tech: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
+  electronics: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
+  science: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
+  health: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=800&q=80',
+  weather: 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=800&q=80',
+  environment: 'https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=800&q=80',
+  crime: 'https://images.unsplash.com/photo-1589578527966-fdac0f44566c?auto=format&fit=crop&w=800&q=80',
+  vehicle: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
+  sports: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80',
+  entertainment: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80',
+  general: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=800&q=80',
+};
+
+function getReferenceImage(category?: string | null): string {
+  if (!category) return CATEGORY_REF_IMAGES.general;
+  const key = category.toLowerCase().trim();
+  for (const [k, url] of Object.entries(CATEGORY_REF_IMAGES)) {
+    if (key.includes(k)) return url;
+  }
+  return CATEGORY_REF_IMAGES.general;
+}
+
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
 });
@@ -212,28 +239,93 @@ Item: """${raw}"""`;
             ? rawAnalysis.location
             : (feed.region || 'Wire');
 
-          const { data, error } = await admin.rpc('ingest_story', {
-            p_author: null,
-            p_category: rawAnalysis.category ?? 'Other',
-            p_location_name: locationName,
-            p_lat: null,
-            p_lng: null,
-            p_titles: titles,
-            p_summaries: summaries,
-            p_media_url: null,
-            p_media_type: 'image',
-            p_c2pa: false,
-            p_ai_prob: rawAnalysis.ai_probability_score ?? 0,
-            p_completeness: rawAnalysis.completeness_score ?? 50,
+          const refImage = getReferenceImage(rawAnalysis.category);
+
+          // 12-Hour Dedup & Update Window: Check if related news exists
+          const { data: dupData } = await admin.rpc('find_duplicate_story', {
             p_embedding: vector,
-            p_source: 'rss',
+            p_threshold: 0.84,
+            p_window_hours: 12,
           });
-          if (error) {
-            errors.push(error.message);
+
+          const dup = Array.isArray(dupData) ? dupData[0] : dupData;
+
+          if (dup?.story_id) {
+            // An update on the same news has arrived:
+            // 1. Fetch the OLDER news
+            const { data: oldStory } = await admin
+              .from('stories')
+              .select('*')
+              .eq('id', dup.story_id)
+              .single();
+
+            if (oldStory) {
+              // 2. Add the OLDER news into the timeline of the latest news
+              await admin.from('story_timeline').insert({
+                story_id: dup.story_id,
+                contributor_id: oldStory.author_id,
+                update_text: {
+                  titles: oldStory.titles,
+                  summaries: oldStory.summaries,
+                  headline: oldStory.titles?.en || 'Earlier Wire Update',
+                  summary: oldStory.summaries?.en || '',
+                  en: oldStory.summaries?.en || '',
+                  bn: oldStory.summaries?.bn || '',
+                  hi: oldStory.summaries?.hi || '',
+                },
+                media_url: oldStory.media_url || refImage,
+                created_at: oldStory.updated_at || oldStory.created_at,
+              });
+
+              // 3. Promote the LATEST news as the primary card and refresh timestamp to now
+              await admin
+                .from('stories')
+                .update({
+                  titles,
+                  summaries,
+                  embedding: vector,
+                  media_url: refImage,
+                  location_name: locationName,
+                  category: rawAnalysis.category ?? oldStory.category,
+                  rollout_stage: 'public',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', dup.story_id);
+
+              merged++;
+            }
           } else {
-            const row = Array.isArray(data) ? data[0] : data;
-            if (row?.action === 'merged_timeline') merged++;
-            else ingested++;
+            // Fresh primary story
+            const { data, error } = await admin.rpc('ingest_story', {
+              p_author: null,
+              p_category: rawAnalysis.category ?? 'Other',
+              p_location_name: locationName,
+              p_lat: null,
+              p_lng: null,
+              p_titles: titles,
+              p_summaries: summaries,
+              p_media_url: refImage,
+              p_media_type: 'image',
+              p_c2pa: false,
+              p_ai_prob: rawAnalysis.ai_probability_score ?? 0,
+              p_completeness: rawAnalysis.completeness_score ?? 50,
+              p_embedding: vector,
+              p_source: 'rss',
+            });
+            if (error) {
+              errors.push(error.message);
+            } else {
+              const row = Array.isArray(data) ? data[0] : data;
+              if (row?.action === 'merged_timeline') merged++;
+              else {
+                ingested++;
+                // Ensure wire stories are public for live feed display
+                if (row?.story_id) {
+                  await admin.from('stories').update({ rollout_stage: 'public', media_url: refImage }).eq('id', row.story_id);
+                }
+              }
+            }
           }
         } catch (e) {
           errors.push(`${feed.name}: ${e instanceof Error ? e.message : String(e)}`);

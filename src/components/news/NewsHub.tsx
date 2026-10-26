@@ -51,6 +51,7 @@ import {
   calculateImpactEarnings,
 } from '@/lib/journalism';
 import { t } from '@/lib/translations';
+import { getReferenceImage, isNewsExpired, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 function mapStoryToArticle(s: any): NewsArticle {
@@ -91,7 +92,7 @@ function mapStoryToArticle(s: any): NewsArticle {
     },
     source: s.source === 'rss' ? 'Verified Wire Agency' : 'Citizen Sentinel',
     publishedAt: s.created_at || new Date().toISOString(),
-    mediaUrl: s.media_url || undefined,
+    mediaUrl: s.media_url || getReferenceImage(s.category),
     c2paVerified: Boolean(s.c2pa_verified),
     credibilityScore: Number(s.credibility_score) || 82,
     aiProbabilityScore: Number(s.ai_probability_score) || 8,
@@ -130,10 +131,12 @@ export function NewsHub() {
 
     const loadLiveStories = async () => {
       try {
+        const twelveHoursAgo = new Date(Date.now() - NEWS_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
         const { data, error } = await sb
           .from('stories')
           .select('*')
           .eq('rollout_stage', 'public')
+          .gte('created_at', twelveHoursAgo)
           .order('created_at', { ascending: false })
           .limit(40);
 
@@ -193,6 +196,10 @@ export function NewsHub() {
   // Filtered & sorted articles
   const filteredArticles = useMemo(() => {
     return articles.filter((article) => {
+      // Expire news if older than 12 hours
+      if (isNewsExpired(article.publishedAt)) {
+        return false;
+      }
       if (selectedCategory !== 'all' && article.category !== selectedCategory) {
         return false;
       }
@@ -317,11 +324,20 @@ export function NewsHub() {
     );
 
     if (duplicateCheck.isDuplicate && duplicateCheck.matchedArticle) {
-      // ── DUPLICATE / DEVELOPING STORY DETECTED: Merge into existing card & update timeline ──
+      // ── DUPLICATE / DEVELOPING STORY DETECTED: Add older news to timeline & promote latest news ──
       const matched = duplicateCheck.matchedArticle;
-      const newTimelineItem = {
+      
+      // 1. Add the OLDER news into the timeline of the latest news
+      const olderTimelineItem = {
+        time: timeAgo(matched.publishedAt),
+        event: `Earlier Dispatch: ${matched.titles.en} — ${matched.summaries.en}`,
+        verifiedBy: matched.source || 'Original Dispatch',
+      };
+
+      // 2. Also record this latest incoming update event
+      const latestUpdateTimelineItem = {
         time: 'Just now',
-        event: `${data.title} — ${data.text.slice(0, 100)}...`,
+        event: `Update: ${data.title} — ${data.text.slice(0, 100)}...`,
         verifiedBy: `${reporterName} (${reporterBadge})`,
       };
 
@@ -379,14 +395,27 @@ export function NewsHub() {
       setArticles((prev) =>
         prev.map((art) => {
           if (art.id !== matched.id) return art;
+          const assignedMedia = data.mediaUrl || art.mediaUrl || getReferenceImage(art.category);
           return {
             ...art,
-            timeline: [newTimelineItem, ...(art.timeline ?? [])],
+            titles: {
+              en: data.title || art.titles.en,
+              bn: synthesis.unifiedSummary.bn ? data.title : art.titles.bn,
+              hi: synthesis.unifiedSummary.hi ? data.title : art.titles.hi,
+            },
+            summaries: {
+              en: synthesis.unifiedSummary.en,
+              bn: synthesis.unifiedSummary.bn || art.summaries.bn,
+              hi: synthesis.unifiedSummary.hi || art.summaries.hi,
+            },
+            publishedAt: new Date().toISOString(), // Refreshed timestamp for latest news (<12h)
+            mediaUrl: assignedMedia,
+            timeline: [latestUpdateTimelineItem, olderTimelineItem, ...(art.timeline ?? [])],
             contributors: [...(art.contributors ?? []), newDispatch],
             dispatchesCount: (art.dispatchesCount ?? 1) + 1,
             totalImpactEarningsInr: (art.totalImpactEarningsInr ?? 350) + 180,
             keyTakeaways: [
-              `Corroborated by ${reporterName} at ${data.location}`,
+              `Latest update from ${reporterName} at ${data.location}`,
               ...(art.keyTakeaways ?? []),
             ].slice(0, 5),
           };
@@ -897,25 +926,33 @@ export function NewsHub() {
               <div className="flex flex-col sm:flex-row p-4 gap-4">
                 {/* ── Left Column: Squarish Photo & Reporter Badge ── */}
                 <div className="flex flex-col gap-2 shrink-0 sm:w-48">
-                  {/* Squarish 1:1 Photo */}
-                  {article.mediaUrl && (
-                    <div className="relative aspect-square w-full sm:w-48 sm:h-48 overflow-hidden rounded-card bg-bg-elevated border border-[var(--border-subtle)]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={article.mediaUrl}
-                        alt={titleText}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                      />
-                      {article.c2paVerified && (
-                        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2 py-0.5 text-[9px] font-bold text-brand-emerald backdrop-blur-sm">
-                          <ShieldCheck size={11} /> C2PA Signed
+                  {/* Squarish 1:1 Photo (Submitted Media or Curated Reference Image) */}
+                  {(() => {
+                    const displayImage = article.mediaUrl || getReferenceImage(article.category);
+                    return (
+                      <div className="relative aspect-square w-full sm:w-48 sm:h-48 overflow-hidden rounded-card bg-bg-elevated border border-[var(--border-subtle)]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={displayImage}
+                          alt={titleText}
+                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                          loading="lazy"
+                        />
+                        {article.c2paVerified ? (
+                          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2 py-0.5 text-[9px] font-bold text-brand-emerald backdrop-blur-sm">
+                            <ShieldCheck size={11} /> C2PA Signed
+                          </div>
+                        ) : !article.mediaUrl ? (
+                          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-black/60 px-2 py-0.5 text-[9px] font-medium text-white/90 backdrop-blur-sm">
+                            <Sparkles size={10} className="text-brand-amber" /> Ref Image
+                          </div>
+                        ) : null}
+                        <div className="absolute bottom-2 left-2 rounded-pill bg-bg-surface/80 px-2 py-0.5 text-[10px] font-mono text-content-primary backdrop-blur-sm">
+                          {article.readingTimeMinutes} min read
                         </div>
-                      )}
-                      <div className="absolute bottom-2 left-2 rounded-pill bg-bg-surface/80 px-2 py-0.5 text-[10px] font-mono text-content-primary backdrop-blur-sm">
-                        {article.readingTimeMinutes} min read
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* ── Reporter's Badge Strip Directly Below the Photo ── */}
                   {article.leadReporter && (
@@ -1472,17 +1509,24 @@ function NewsDrillDownPage({
         <div className="space-y-5">
           {/* Main Visual & Title Header */}
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            {article.mediaUrl && (
-              <div className="relative aspect-square w-full sm:w-48 sm:h-48 shrink-0 overflow-hidden rounded-card border border-[var(--border-subtle)] bg-bg-elevated">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={article.mediaUrl} alt={titleText} className="h-full w-full object-cover" />
-                {article.c2paVerified && (
-                  <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2.5 py-1 text-[10px] font-bold text-brand-emerald backdrop-blur-sm">
-                    <ShieldCheck size={12} /> C2PA Authenticated
-                  </div>
-                )}
-              </div>
-            )}
+            {(() => {
+              const displayImage = article.mediaUrl || getReferenceImage(article.category);
+              return (
+                <div className="relative aspect-square w-full sm:w-48 sm:h-48 shrink-0 overflow-hidden rounded-card border border-[var(--border-subtle)] bg-bg-elevated">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={displayImage} alt={titleText} className="h-full w-full object-cover" />
+                  {article.c2paVerified ? (
+                    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2.5 py-1 text-[10px] font-bold text-brand-emerald backdrop-blur-sm">
+                      <ShieldCheck size={12} /> C2PA Authenticated
+                    </div>
+                  ) : !article.mediaUrl ? (
+                    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-black/70 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                      <Sparkles size={11} className="text-brand-amber" /> Reference Image
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
 
             <div className="flex-1 space-y-2">
               <div className="flex items-center justify-between text-xs text-content-muted">

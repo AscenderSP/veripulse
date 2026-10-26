@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { LiveNewsItem } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/demoData';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getReferenceImage } from '@/lib/referenceImages';
 export type { LiveNewsItem };
 
 const FALLBACK_NEWS: LiveNewsItem[] = [
@@ -62,10 +63,12 @@ export async function GET() {
   if (isSupabaseConfigured()) {
     try {
       const sb = await createSupabaseServerClient();
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
       const { data } = await sb
         .from('stories')
         .select('*')
         .eq('rollout_stage', 'public')
+        .gte('created_at', twelveHoursAgo)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -76,7 +79,7 @@ export async function GET() {
           description: typeof s.summaries === 'object' ? (s.summaries?.en || s.summaries?.bn || s.summaries?.hi || '').slice(0, 200) : s.summaries,
           url: s.media_url || '#',
           source: s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel',
-          image: s.media_url || null,
+          image: s.media_url || getReferenceImage(s.category),
           publishedAt: s.created_at,
           category: (s.category || 'general').toLowerCase(),
         }));

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser, createSupabaseAdminClient } from '@/lib/supabase/server';
 import { analyzeStory, embedText } from '@/lib/gemini';
+import { getReferenceImage } from '@/lib/referenceImages';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest) {
     const embedSource = `${analysis.titles.en}. ${analysis.summaries.en}`;
     const embedding = await embedText(embedSource);
 
+    const finalMediaUrl = mediaUrl || getReferenceImage(analysis.category);
+
     // ── Atomic ingest with dedup (service role bypasses RLS deliberately) ──
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.rpc('ingest_story', {
@@ -66,7 +69,7 @@ export async function POST(req: NextRequest) {
       p_lng: lng,
       p_titles: analysis.titles,
       p_summaries: analysis.summaries,
-      p_media_url: mediaUrl,
+      p_media_url: finalMediaUrl,
       p_media_type: mediaType,
       p_c2pa: c2pa,
       p_ai_prob: analysis.ai_probability_score,
@@ -80,6 +83,49 @@ export async function POST(req: NextRequest) {
     }
 
     const result = Array.isArray(data) ? data[0] : data;
+
+    // If merged into an existing story: add older news into timeline and promote latest news as primary
+    if (result?.action === 'merged_timeline' && result?.story_id) {
+      const { data: oldStory } = await admin
+        .from('stories')
+        .select('*')
+        .eq('id', result.story_id)
+        .single();
+
+      if (oldStory) {
+        // Add the older news into the timeline of the latest news
+        await admin.from('story_timeline').insert({
+          story_id: result.story_id,
+          contributor_id: oldStory.author_id,
+          update_text: {
+            titles: oldStory.titles,
+            summaries: oldStory.summaries,
+            headline: oldStory.titles?.en || 'Earlier Dispatch',
+            summary: oldStory.summaries?.en || '',
+            en: oldStory.summaries?.en || '',
+            bn: oldStory.summaries?.bn || '',
+            hi: oldStory.summaries?.hi || '',
+          },
+          media_url: oldStory.media_url || finalMediaUrl,
+          created_at: oldStory.updated_at || oldStory.created_at,
+        });
+
+        // Promote the latest news as the primary card and refresh timestamp
+        await admin
+          .from('stories')
+          .update({
+            titles: analysis.titles,
+            summaries: analysis.summaries,
+            embedding,
+            media_url: finalMediaUrl,
+            completeness_score: Math.max(analysis.completeness_score, oldStory.completeness_score || 50),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', result.story_id);
+      }
+    }
+
     return NextResponse.json({
       story_id: result?.story_id,
       action: result?.action, // 'created_primary' | 'merged_timeline'

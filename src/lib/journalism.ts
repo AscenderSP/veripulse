@@ -2,6 +2,15 @@
 
 import type { NewsArticle, ReporterDispatch, LocalizedText } from './types';
 
+export const NEWS_EXPIRY_HOURS = 12;
+export const NEWS_EXPIRY_MS = NEWS_EXPIRY_HOURS * 60 * 60 * 1000;
+
+export function isNewsExpired(publishedAtOrCreatedAt: string | Date | number): boolean {
+  const time = new Date(publishedAtOrCreatedAt).getTime();
+  if (isNaN(time)) return false;
+  return Date.now() - time > NEWS_EXPIRY_MS;
+}
+
 function tokenize(text: string): Set<string> {
   return new Set(
     text
@@ -47,6 +56,9 @@ export function findDuplicateNews(
   const dispatchContent = `${dispatch.title} ${dispatch.text}`;
 
   for (const article of existingArticles) {
+    // Expired news (>12 hours) cannot receive updates as recent developing stories
+    if (isNewsExpired(article.publishedAt)) continue;
+
     // Only match articles in the same or related category
     const isSameCategory = article.category === dispatch.category;
     const articleContent = `${article.titles.en} ${article.summaries.en} ${article.tags.join(' ')}`;

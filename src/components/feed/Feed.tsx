@@ -15,6 +15,7 @@ import { distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
+import { isNewsExpired } from '@/lib/referenceImages';
 import type { Area } from '@/components/shell/AreaSwitcher';
 
 const VOTE_ERRORS: Record<string, string> = {
@@ -38,9 +39,11 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   const load = useCallback(async () => {
     setLoading(true);
     if (!isSupabaseConfigured()) {
-      const inScope = DEMO_STORIES.filter((s) =>
-        vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined',
-      ).filter(
+      const inScope = DEMO_STORIES.filter((s) => {
+        // Stories older than 12 hours expire from active feeds (unless vault)
+        if (!vault && isNewsExpired(s.created_at)) return false;
+        return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
+      }).filter(
         (s) =>
           scope !== 'hyperlocal' ||
           area.lat === null ||
@@ -57,7 +60,8 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
       p_radius_km: 10,
       p_limit: 50,
     });
-    setStories((data as Story[]) ?? []);
+    const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
+    setStories(active);
     setLoading(false);
   }, [scope, vault, area.lat, area.lng]);
 

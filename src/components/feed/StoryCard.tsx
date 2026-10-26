@@ -20,6 +20,7 @@ import { stageMeta, timeAgo, cn } from '@/lib/utils';
 import { t } from '@/lib/translations';
 import { triggerVoteHaptic, shareStory } from '@/lib/nativeHardware';
 import { maybeShowInterstitial } from '@/lib/admob';
+import { getReferenceImage } from '@/lib/referenceImages';
 import { AudioReadout } from './AudioReadout';
 import { HoaxBreakdown } from './HoaxBreakdown';
 
@@ -110,6 +111,37 @@ export function StoryCard({
         <span className="shrink-0 text-xs text-content-muted" suppressHydrationWarning>{timeAgo(story.created_at)}</span>
       </div>
 
+      {/* Visual media or curated reference image */}
+      {(() => {
+        const imageUrl = story.media_url || getReferenceImage(story.category);
+        return (
+          <div className="relative mx-4 mb-3 h-48 overflow-hidden rounded-xl bg-surface-sunken">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt={story.titles[lang]}
+              className="h-full w-full object-cover transition duration-300 hover:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              {story.c2pa_verified ? (
+                <>
+                  <ShieldCheck size={11} className="text-brand-emerald" />
+                  <span>C2PA Verified</span>
+                </>
+              ) : story.media_url ? (
+                <span>Eyewitness Media</span>
+              ) : (
+                <>
+                  <Sparkles size={11} className="text-brand-amber" />
+                  <span>Reference Image</span>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* body */}
       <div className="px-4">
         <h3 className="text-[15px] font-bold leading-snug text-content-primary">
@@ -198,12 +230,17 @@ export function StoryCard({
             ) : nodes.length === 0 ? (
               <li className="text-content-muted">{t('noCorroborating', lang)}</li>
             ) : (
-              nodes.map((n) => (
-                <TimelineDot key={n.id} color="var(--brand-sky)">
-                  <span className="text-content-primary">{n.update_text[lang]}</span>
-                  <span className="ml-1 text-content-muted">· {timeAgo(n.created_at)} ago</span>
-                </TimelineDot>
-              ))
+              nodes.map((n) => {
+                const text = typeof n.update_text === 'object' && n.update_text !== null
+                  ? (n.update_text[lang] || (n.update_text as any).summary || (n.update_text as any).headline || (n.update_text as any).en || JSON.stringify(n.update_text))
+                  : String(n.update_text);
+                return (
+                  <TimelineDot key={n.id} color="var(--brand-sky)">
+                    <span className="text-content-primary">{text}</span>
+                    <span className="ml-1 text-content-muted">· {timeAgo(n.created_at)}</span>
+                  </TimelineDot>
+                );
+              })
             )}
           </ol>
         </div>
