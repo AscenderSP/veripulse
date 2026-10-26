@@ -226,22 +226,40 @@ function LiveNotifications({ onNavigate }: { onNavigate?: (s: Section) => void }
 
 /* ── Live News Ticker (external API) ── */
 
+let cachedLiveTickerNews: { items: LiveNewsItem[]; source: string } | null = null;
+
 function LiveNewsTicker() {
-  const [news, setNews] = useState<LiveNewsItem[]>([]);
-  const [source, setSource] = useState<string>('');
+  const [news, setNews] = useState<LiveNewsItem[]>(() => cachedLiveTickerNews?.items ?? []);
+  const [source, setSource] = useState<string>(() => cachedLiveTickerNews?.source ?? '');
   const { lang } = useLang();
 
   useEffect(() => {
     fetch('/api/news/live')
       .then((r) => r.json())
       .then((data) => {
-        setNews(data.items?.slice(0, 5) ?? []);
-        setSource(data.source ?? '');
+        const items = data.items?.slice(0, 5) ?? [];
+        const src = data.source ?? 'live';
+        setNews(items);
+        setSource(src);
+        cachedLiveTickerNews = { items, source: src };
       })
       .catch(() => {});
   }, []);
 
-  if (news.length === 0) return null;
+  if (news.length === 0) {
+    return (
+      <Card className="p-4 space-y-3 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-24 rounded bg-bg-elevated" />
+          <div className="h-3 w-10 rounded bg-bg-elevated" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-3 w-full rounded bg-bg-elevated/70" />
+          <div className="h-3 w-4/5 rounded bg-bg-elevated/70" />
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-4">

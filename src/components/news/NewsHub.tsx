@@ -37,7 +37,7 @@ import {
   CheckCheck,
   Zap,
 } from 'lucide-react';
-import { Card, Button, Badge, CredMeter } from '@/components/ui/primitives';
+import { Card, Button, Badge, CredMeter, CustomSelect } from '@/components/ui/primitives';
 import { cn, timeAgo, formatINR, formatVPCoins, inrToVPCoins } from '@/lib/utils';
 import { useLang } from '@/hooks/useLang';
 import { useSession } from '@/hooks/useSession';
@@ -121,8 +121,14 @@ export function NewsHub() {
   const [c2paOnly, setC2paOnly] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Live state of news articles (with dynamic credibility & votes)
-  const [articles, setArticles] = useState<NewsArticle[]>(DEMO_NEWS_ARTICLES);
+  // In-memory article cache for instant 0ms tab navigation
+  const [articles, setArticles] = useState<NewsArticle[]>(() => {
+    if (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) {
+      return (window as any).__VERIPULSE_NEWS_CACHE__;
+    }
+    return DEMO_NEWS_ARTICLES;
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Load real-time news stories directly from Supabase
   useEffect(() => {
@@ -131,6 +137,7 @@ export function NewsHub() {
 
     const loadLiveStories = async () => {
       try {
+        setIsSyncing(true);
         const twelveHoursAgo = new Date(Date.now() - NEWS_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
         const { data, error } = await sb
           .from('stories')
@@ -145,11 +152,17 @@ export function NewsHub() {
           setArticles((prev) => {
             const liveIds = new Set(live.map((a) => a.id));
             const remaining = prev.filter((a) => !liveIds.has(a.id));
-            return [...live, ...remaining];
+            const merged = [...live, ...remaining];
+            if (typeof window !== 'undefined') {
+              (window as any).__VERIPULSE_NEWS_CACHE__ = merged;
+            }
+            return merged;
           });
         }
       } catch {
         // keep existing articles on network error
+      } finally {
+        setIsSyncing(false);
       }
     };
 
@@ -849,15 +862,22 @@ export function NewsHub() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={lang === 'bn' ? 'শিরোনাম, ট্যাগ বা সংবাদ সূত্র খুঁজুন...' : lang === 'hi' ? 'शीर्षक, टैग या समाचार स्रोत खोजें...' : 'Search news by headline, tags, reporter, or source...'}
-            className="w-full rounded-button border border-[var(--border-subtle)] bg-bg-surface py-2 pl-8 pr-3 text-xs text-content-primary placeholder:text-content-muted focus:border-brand-emerald focus:outline-none"
+            className="w-full rounded-pill border border-[var(--border-subtle)] bg-bg-surface py-2 pl-8 pr-3 text-xs text-content-primary placeholder:text-content-muted focus:border-brand-emerald focus:outline-none transition-colors"
           />
         </div>
 
         <div className="flex items-center gap-2">
+          {isSyncing && (
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-content-muted font-mono animate-pulse mr-1">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-emerald animate-ping" />
+              <span>Syncing...</span>
+            </div>
+          )}
+
           <button
             onClick={() => setC2paOnly(!c2paOnly)}
             className={cn(
-              'flex items-center gap-1.5 rounded-button border px-2.5 py-2 text-xs font-semibold transition-colors',
+              'flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-semibold transition-colors',
               c2paOnly
                 ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-brand-emerald'
                 : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
@@ -867,15 +887,30 @@ export function NewsHub() {
             <span>C2PA</span>
           </button>
 
-          <select
+          <CustomSelect<'latest' | 'credibility' | 'fastest'>
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="rounded-button border border-[var(--border-subtle)] bg-bg-surface px-2.5 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
-          >
-            <option value="latest">{lang === 'bn' ? 'সর্বশেষ' : lang === 'hi' ? 'नवीनतम' : 'Latest First'}</option>
-            <option value="credibility">{lang === 'bn' ? 'সর্বোচ্চ নির্ভরযোগ্যতা' : lang === 'hi' ? 'उच्चतम विश्वसनीयता' : 'Highest Credibility'}</option>
-            <option value="fastest">{lang === 'bn' ? 'দ্রুত পাঠ (১ মিনিট)' : lang === 'hi' ? 'त्वरित पठन (1 मिनट)' : 'Quick Read (1 min)'}</option>
-          </select>
+            onChange={setSortBy}
+            variant="pill"
+            size="sm"
+            align="right"
+            options={[
+              {
+                value: 'latest',
+                label: lang === 'bn' ? 'সর্বশেষ' : lang === 'hi' ? 'नवीनतम' : 'Latest First',
+                icon: <Clock size={12} className="text-brand-sky" />,
+              },
+              {
+                value: 'credibility',
+                label: lang === 'bn' ? 'সর্বোচ্চ নির্ভরযোগ্যতা' : lang === 'hi' ? 'उच्चतम विश्वसनीयता' : 'Highest Credibility',
+                icon: <ShieldCheck size={12} className="text-brand-emerald" />,
+              },
+              {
+                value: 'fastest',
+                label: lang === 'bn' ? 'দ্রুত পাঠ (১ মিনিট)' : lang === 'hi' ? 'त्वरित पठन (1 मिनट)' : 'Quick Read (1 min)',
+                icon: <Zap size={12} className="text-brand-amber" />,
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -1280,17 +1315,22 @@ function FileDispatchPage({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-bold text-content-secondary">Category</label>
-              <select
+              <CustomSelect<NewsCategory>
                 value={category}
-                onChange={(e) => setCategory(e.target.value as NewsCategory)}
-                className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
-              >
-                <option value="politics">Politics & Government</option>
-                <option value="business">Business & Economy</option>
-                <option value="tech">Science & Technology</option>
-                <option value="health">Health & Environment</option>
-                <option value="entertainment">Sports & Entertainment</option>
-              </select>
+                onChange={setCategory}
+                variant="card"
+                size="md"
+                align="left"
+                className="mt-1 w-full"
+                buttonClassName="w-full justify-between"
+                options={[
+                  { value: 'politics', label: 'Politics & Government' },
+                  { value: 'business', label: 'Business & Economy' },
+                  { value: 'tech', label: 'Science & Technology' },
+                  { value: 'health', label: 'Health & Environment' },
+                  { value: 'entertainment', label: 'Sports & Entertainment' },
+                ]}
+              />
             </div>
 
             <div>

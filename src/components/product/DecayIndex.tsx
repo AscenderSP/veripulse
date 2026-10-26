@@ -15,7 +15,7 @@ import {
   Plus,
   Sparkles,
 } from 'lucide-react';
-import { Card, Badge, Button } from '@/components/ui/primitives';
+import { Card, Badge, Button, CustomSelect } from '@/components/ui/primitives';
 import { DEMO_DECAY_CHECKINS } from '@/lib/demoData';
 import { formatINR } from '@/lib/utils';
 import type { DecayCheckIn } from '@/lib/types';
@@ -133,16 +133,21 @@ export function DecayIndex({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
                 <label className="text-content-muted font-medium">Milestone</label>
-                <select
+                <CustomSelect
                   value={milestone}
-                  onChange={(e) => setMilestone(e.target.value as any)}
-                  className="mt-1 w-full rounded border border-[var(--border-subtle)] bg-bg-elevated p-2 text-content-primary focus:outline-none"
-                >
-                  <option value="3-month">3-Month (₹50)</option>
-                  <option value="6-month">6-Month (₹100)</option>
-                  <option value="1-year">1-Year (₹150)</option>
-                  <option value="2-year">2-Year (₹200)</option>
-                </select>
+                  onChange={(val) => setMilestone(val as any)}
+                  variant="card"
+                  size="sm"
+                  align="left"
+                  className="mt-1 w-full"
+                  buttonClassName="w-full justify-between"
+                  options={[
+                    { value: '3-month', label: '3-Month (₹50)' },
+                    { value: '6-month', label: '6-Month (₹100)' },
+                    { value: '1-year', label: '1-Year (₹150)' },
+                    { value: '2-year', label: '2-Year (₹200)' },
+                  ]}
+                />
               </div>
 
               <div>

@@ -34,7 +34,7 @@ import {
   ArrowLeft,
   Coins,
 } from 'lucide-react';
-import { Button, Card } from '@/components/ui/primitives';
+import { Button, Card, CustomSelect } from '@/components/ui/primitives';
 import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -1498,17 +1498,22 @@ function LoggedOutHub({
 
             <div>
               <label className="text-[11px] font-semibold text-content-secondary">Primary Citizen Specialization</label>
-              <select
+              <CustomSelect
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="mt-1 w-full rounded-button border border-[var(--border-subtle)] bg-bg-primary px-3 py-2 text-xs text-content-primary focus:border-brand-emerald focus:outline-none"
-              >
-                <option value="Civic Sentinel & Field Reporter">Civic Sentinel & Field Reporter</option>
-                <option value="Gadget Specialist & Reviewer">Gadget Specialist & Reviewer</option>
-                <option value="EV / Auto Telemetry Contributor">EV / Auto Telemetry Contributor</option>
-                <option value="Fact-Checker & Media Auditor">Fact-Checker & Media Auditor</option>
-                <option value="Daily Commuter & Citizen">Daily Commuter & Citizen</option>
-              </select>
+                onChange={setRole}
+                variant="card"
+                size="md"
+                align="left"
+                className="mt-1 w-full"
+                buttonClassName="w-full justify-between"
+                options={[
+                  { value: 'Civic Sentinel & Field Reporter', label: 'Civic Sentinel & Field Reporter' },
+                  { value: 'Gadget Specialist & Reviewer', label: 'Gadget Specialist & Reviewer' },
+                  { value: 'EV / Auto Telemetry Contributor', label: 'EV / Auto Telemetry Contributor' },
+                  { value: 'Fact-Checker & Media Auditor', label: 'Fact-Checker & Media Auditor' },
+                  { value: 'Daily Commuter & Citizen', label: 'Daily Commuter & Citizen' },
+                ]}
+              />
             </div>
 
             <div>

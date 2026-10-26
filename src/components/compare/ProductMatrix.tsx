@@ -46,7 +46,7 @@ import {
   ThumbsUp,
   ArrowLeft,
 } from 'lucide-react';
-import { Card, Badge, Button } from '@/components/ui/primitives';
+import { Card, Badge, Button, CustomSelect } from '@/components/ui/primitives';
 import { DEMO_PRODUCTS, DEMO_HEAD_TO_HEAD_BATTLES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiUrl } from '@/lib/api';
@@ -972,24 +972,26 @@ export function ProductMatrix() {
             <div className="flex items-center gap-1.5 text-xs">
               <ArrowUpDown size={13} className="text-content-muted" />
               <span className="text-content-muted font-bold text-[11px] uppercase tracking-wider">{t('sortBy', lang)}:</span>
-              <select
+              <CustomSelect
                 value={selectedSort}
-                onChange={(e) => {
-                  setSelectedSort(e.target.value as any);
+                onChange={(val) => {
+                  setSelectedSort(val as any);
                   setCategoryQuickRanking('all');
                 }}
-                className="rounded-button border border-[var(--border-subtle)] bg-bg-surface px-2.5 py-1 text-xs font-semibold text-content-primary focus:border-brand-emerald focus:outline-none"
-              >
-                <option value="default">{lang === 'bn' ? 'প্রস্তাবিত (যাচাইকৃত প্রথমে)' : lang === 'hi' ? 'अनुशंसित (सत्यापित पहले)' : 'Recommended (Verified First)'}</option>
-                <option value="rating_desc">⭐ {t('sort_rating', lang)}</option>
-                <option value="owners_desc">👥 {t('sort_owners', lang)}</option>
-                <option value="price_asc">💵 {t('sort_price_low', lang)}</option>
-                <option value="price_desc">💎 {t('sort_price_high', lang)}</option>
-                <option value="gap_asc">🎯 {t('sort_gap', lang)}</option>
-                <option value="tco_asc">💰 {t('sort_tco', lang)}</option>
-                <option value="resale_desc">📈 {t('sort_resale', lang)}</option>
-                <option value="repair_desc">🔧 {t('sort_repair', lang)}</option>
-              </select>
+                variant="pill"
+                size="sm"
+                options={[
+                  { value: 'default', label: lang === 'bn' ? 'প্রস্তাবিত (যাচাইকৃত প্রথমে)' : lang === 'hi' ? 'अनुशंसित (सत्यापित पहले)' : 'Recommended (Verified First)' },
+                  { value: 'rating_desc', label: t('sort_rating', lang), icon: <span>⭐</span> },
+                  { value: 'owners_desc', label: t('sort_owners', lang), icon: <span>👥</span> },
+                  { value: 'price_asc', label: t('sort_price_low', lang), icon: <span>💵</span> },
+                  { value: 'price_desc', label: t('sort_price_high', lang), icon: <span>💎</span> },
+                  { value: 'gap_asc', label: t('sort_gap', lang), icon: <span>🎯</span> },
+                  { value: 'tco_asc', label: t('sort_tco', lang), icon: <span>💰</span> },
+                  { value: 'resale_desc', label: t('sort_resale', lang), icon: <span>📈</span> },
+                  { value: 'repair_desc', label: t('sort_repair', lang), icon: <span>🔧</span> },
+                ]}
+              />
             </div>
 
             <button
@@ -2953,18 +2955,23 @@ function ProductReviewPage({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <label className="text-[11px] text-content-muted">Proof Type</label>
-                <select
+                <CustomSelect
                   value={evidenceType}
-                  onChange={(e) => setEvidenceType(e.target.value)}
-                  className="mt-1 w-full rounded border border-[var(--border-subtle)] bg-bg-surface p-1.5 text-xs text-content-primary focus:outline-none"
-                >
-                  <option value="None">None</option>
-                  <option value="Battery SOT Screenshot">Battery SOT Screenshot</option>
-                  <option value="Camera RAW Sample">Camera RAW Sample</option>
-                  <option value="Service Center Bill">Service Center Bill</option>
-                  <option value="Odometer Mileage Photo">Odometer Mileage Photo</option>
-                  <option value="GST Purchase Invoice">GST Purchase Invoice</option>
-                </select>
+                  onChange={setEvidenceType}
+                  variant="card"
+                  size="sm"
+                  align="left"
+                  className="mt-1 w-full"
+                  buttonClassName="w-full justify-between"
+                  options={[
+                    { value: 'None', label: 'None' },
+                    { value: 'Battery SOT Screenshot', label: 'Battery SOT Screenshot' },
+                    { value: 'Camera RAW Sample', label: 'Camera RAW Sample' },
+                    { value: 'Service Center Bill', label: 'Service Center Bill' },
+                    { value: 'Odometer Mileage Photo', label: 'Odometer Mileage Photo' },
+                    { value: 'GST Purchase Invoice', label: 'GST Purchase Invoice' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="text-[11px] text-content-muted">Proof Details / Notes</label>

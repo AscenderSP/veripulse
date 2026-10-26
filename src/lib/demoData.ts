@@ -2764,7 +2764,7 @@ export const DEMO_NEWS_ARTICLES: NewsArticle[] = [
     },
     source: 'Ministry of Information & Broadcasting / NFDC',
     sourceUrl: 'https://mib.gov.in',
-    publishedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    publishedAt: new Date(Date.now() - 3600000 * 7.5).toISOString(),
     mediaUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80',
     c2paVerified: true,
     credibilityScore: 99,

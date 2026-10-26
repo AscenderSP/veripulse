@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Map, List } from 'lucide-react';
+import { Loader2, Map as MapIcon, List, RefreshCw } from 'lucide-react';
 import type { Story, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { StoryCard, type VoteOutcome } from './StoryCard';
 import { Composer } from './Composer';
@@ -24,20 +24,75 @@ const VOTE_ERRORS: Record<string, string> = {
   AUTH_REQUIRED: 'Sign in to vote.',
 };
 
+// Global in-memory cache for instant 0ms tab switching
+const feedScopeCache = new Map<string, Story[]>();
+
+function getInitialScopedStories(scope: string, vault: boolean, lat: number | null, lng: number | null): Story[] {
+  const cacheKey = `${vault ? 'vault' : scope}:${lat ?? ''}:${lng ?? ''}`;
+  if (feedScopeCache.has(cacheKey) && feedScopeCache.get(cacheKey)!.length > 0) {
+    return feedScopeCache.get(cacheKey)!;
+  }
+  return DEMO_STORIES.filter((s) => {
+    if (!vault && isNewsExpired(s.created_at)) return false;
+    return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
+  }).filter(
+    (s) =>
+      scope !== 'hyperlocal' ||
+      lat === null ||
+      (s.lat !== null && s.lng !== null && distanceKm(lat, lng!, s.lat, s.lng) <= 10),
+  );
+}
+
+function StoryCardSkeleton() {
+  return (
+    <div className="rounded-card border border-[var(--border-subtle)] bg-bg-surface p-4 space-y-3 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-16 rounded-full bg-bg-elevated" />
+          <div className="h-4 w-24 rounded bg-bg-elevated" />
+        </div>
+        <div className="h-4 w-12 rounded bg-bg-elevated" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-4 w-3/4 rounded bg-bg-elevated" />
+        <div className="h-3 w-full rounded bg-bg-elevated/70" />
+        <div className="h-3 w-5/6 rounded bg-bg-elevated/70" />
+      </div>
+      <div className="flex items-center justify-between pt-2">
+        <div className="h-6 w-28 rounded-full bg-bg-elevated" />
+        <div className="h-8 w-20 rounded-button bg-bg-elevated" />
+      </div>
+    </div>
+  );
+}
+
 export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   const { demo, profile } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
-  const [stories, setStories] = useState<Story[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const scope = vault ? 'vault' : area.scope;
+  const cacheKey = `${scope}:${area.lat ?? ''}:${area.lng ?? ''}`;
+
+  // Initial render: immediately use cache or filtered demo stories (0ms delay)
+  const [stories, setStories] = useState<Story[]>(() =>
+    getInitialScopedStories(scope, vault, area.lat, area.lng),
+  );
+  const [loading, setLoading] = useState(() => !feedScopeCache.has(cacheKey) && stories.length === 0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'feed' | 'map'>('feed');
+
   // demo-mode vote memory so switching votes reverses like the SQL does
   const demoVotes = useRef<Record<string, { vote: VoteAction; weight: number }>>({});
 
-  const scope = vault ? 'vault' : area.scope;
-
   const load = useCallback(async () => {
-    setLoading(true);
+    // If we have no cached stories, show skeleton
+    if (stories.length === 0) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
     if (!isSupabaseConfigured()) {
       const inScope = DEMO_STORIES.filter((s) => {
         // Stories older than 12 hours expire from active feeds (unless vault)
@@ -50,24 +105,39 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
           (s.lat !== null && s.lng !== null && distanceKm(area.lat, area.lng!, s.lat, s.lng) <= 10),
       );
       setStories(inScope);
+      feedScopeCache.set(cacheKey, inScope);
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
-    const { data } = await getSupabaseBrowserClient().rpc('get_feed', {
-      p_scope: scope,
-      p_lat: area.lat,
-      p_lng: area.lng,
-      p_radius_km: 10,
-      p_limit: 50,
-    });
-    const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
-    setStories(active);
-    setLoading(false);
-  }, [scope, vault, area.lat, area.lng]);
+
+    try {
+      const { data } = await getSupabaseBrowserClient().rpc('get_feed', {
+        p_scope: scope,
+        p_lat: area.lat,
+        p_lng: area.lng,
+        p_radius_km: 10,
+        p_limit: 50,
+      });
+      const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
+      setStories(active);
+      feedScopeCache.set(cacheKey, active);
+    } catch {
+      // Retain existing cached stories on network hiccup
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [scope, vault, area.lat, area.lng, cacheKey, stories.length]);
 
   useEffect(() => {
+    // On scope change, check cache first
+    if (feedScopeCache.has(cacheKey)) {
+      setStories(feedScopeCache.get(cacheKey)!);
+      setLoading(false);
+    }
     load();
-  }, [load]);
+  }, [scope, area.lat, area.lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: live credibility / stage changes; new stories trigger a reload.
   useEffect(() => {
@@ -77,18 +147,20 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
       .channel(`feed:${scope}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stories' }, (payload) => {
         const s = payload.new as Story;
-        setStories((list) =>
-          list
+        setStories((list) => {
+          const updated = list
             .map((x) => (x.id === s.id ? { ...x, ...s } : x))
-            .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined')),
-        );
+            .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined'));
+          feedScopeCache.set(cacheKey, updated);
+          return updated;
+        });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => load())
       .subscribe();
     return () => {
       sb.removeChannel(channel);
     };
-  }, [scope, vault, load]);
+  }, [scope, vault, load, cacheKey]);
 
   async function handleVote(story: Story, vote: VoteAction): Promise<VoteOutcome> {
     if (demo) return demoVote(story, vote);
@@ -99,31 +171,39 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
         body: JSON.stringify({ story_id: story.id, vote }),
       }),
     );
-    if (!res) return { error: 'Sign in to vote.' };
-    const data = await res.json();
-    if (!res.ok) {
-      const code = Object.keys(VOTE_ERRORS).find((c) => String(data.error).includes(c));
-      return { error: code ? VOTE_ERRORS[code] : 'Vote failed.' };
+    if (!res || !res.ok) {
+      const err = await res?.json().catch(() => ({}));
+      const msg = VOTE_ERRORS[err?.error] ?? 'Vote rejected.';
+      return { error: msg };
     }
-    return { credibility: Number(data.credibility), stage: data.stage };
+    const data = await res.json();
+    setStories((list) => {
+      const updated = list.map((x) =>
+        x.id === story.id
+          ? { ...x, credibility_score: data.credibility, rollout_stage: data.stage }
+          : x,
+      );
+      feedScopeCache.set(cacheKey, updated);
+      return updated;
+    });
+    return { credibility: data.credibility, stage: data.stage };
   }
 
   function demoVote(story: Story, vote: VoteAction): VoteOutcome {
     const prev = demoVotes.current[story.id];
     if (prev?.vote === vote) return { credibility: story.credibility_score, stage: story.rollout_stage };
-    const dist =
-      profile?.home_lat != null && story.lat !== null && story.lng !== null
-        ? distanceKm(profile.home_lat, profile.home_lng!, story.lat, story.lng)
-        : null;
-    const weight = voteWeight(profile?.trust_score ?? 50, dist, false);
+
+    const weight = voteWeight(profile?.trust_score ?? 80, null, profile?.is_ownership_verified ?? false);
     let cred = story.credibility_score;
     if (prev) cred -= 3.5 * voteScalar(prev.vote) * prev.weight;
     cred = nextCredibility(cred, vote, weight);
     const stage = nextStage(story.rollout_stage, cred);
     demoVotes.current[story.id] = { vote, weight };
-    setStories((list) =>
-      list.map((x) => (x.id === story.id ? { ...x, credibility_score: cred, rollout_stage: stage } : x)),
-    );
+    setStories((list) => {
+      const updated = list.map((x) => (x.id === story.id ? { ...x, credibility_score: cred, rollout_stage: stage } : x));
+      feedScopeCache.set(cacheKey, updated);
+      return updated;
+    });
     return { credibility: cred, stage };
   }
 
@@ -140,7 +220,7 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
       {/* View Switcher: Feed Cards vs Incident Heatmap */}
       {!vault && (
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <button
               onClick={() => setViewMode('feed')}
               className={`flex items-center gap-1.5 rounded-pill px-3 py-1 font-semibold transition-all ${
@@ -159,9 +239,16 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
                   : 'bg-bg-elevated text-content-muted hover:text-content-primary'
               }`}
             >
-              <Map size={13} /> {t('incidentHeatmap', lang)}
+              <MapIcon size={13} /> {t('incidentHeatmap', lang)}
             </button>
           </div>
+
+          {isRefreshing && (
+            <div className="flex items-center gap-1 text-[11px] text-content-muted font-mono animate-pulse">
+              <RefreshCw size={11} className="animate-spin text-brand-emerald" />
+              <span>Updating...</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -172,8 +259,9 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
           {!vault && <Composer onSubmitted={load} />}
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-content-muted">
-              <Loader2 className="animate-spin" />
+            <div className="space-y-3">
+              <StoryCardSkeleton />
+              <StoryCardSkeleton />
             </div>
           ) : stories.length === 0 ? (
             <div className="rounded-card border border-dashed border-[var(--border-subtle)] py-16 text-center text-sm text-content-muted">

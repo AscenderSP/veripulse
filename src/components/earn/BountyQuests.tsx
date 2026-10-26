@@ -26,7 +26,7 @@ import {
   ChevronRight,
   Timer,
 } from 'lucide-react';
-import { Card, Badge, Button } from '@/components/ui/primitives';
+import { Card, Badge, Button, CustomSelect } from '@/components/ui/primitives';
 import { DEMO_BOUNTIES, DEMO_BOUNTY_CYCLES } from '@/lib/demoData';
 import { formatINR, formatVPCoins, inrToVPCoins, vpCoinsToINR } from '@/lib/utils';
 import { recordMasterTransaction } from '@/lib/transactions';
@@ -445,18 +445,29 @@ function BountyLeaderboardView({
           <span className="text-xs text-content-muted font-medium flex items-center gap-1">
             <History size={13} /> Select Cycle:
           </span>
-          <select
+          <CustomSelect
             value={selectedCycle.cycleId}
-            onChange={(e) => onSelectCycleId(e.target.value)}
-            className="rounded-button border border-[var(--border-subtle)] bg-bg-elevated px-3 py-1.5 text-xs font-bold text-content-primary focus:border-brand-emerald focus:outline-none"
-          >
-            {cycles.map((c) => (
-              <option key={c.cycleId} value={c.cycleId}>
-                {c.status === 'active' ? '🟢 ' : '📜 '}
-                {c.cycleName} ({c.cycleDate})
-              </option>
-            ))}
-          </select>
+            onChange={onSelectCycleId}
+            variant="pill"
+            size="sm"
+            align="right"
+            options={cycles.map((c) => ({
+              value: c.cycleId,
+              label: `${c.cycleName} (${c.cycleDate})`,
+              icon: <span>{c.status === 'active' ? '🟢' : '📜'}</span>,
+              badge: (
+                <span
+                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono uppercase font-bold ${
+                    c.status === 'active'
+                      ? 'bg-brand-emerald/20 text-brand-emerald'
+                      : 'bg-bg-elevated text-content-muted'
+                  }`}
+                >
+                  {c.status}
+                </span>
+              ),
+            }))}
+          />
         </div>
       </div>
 

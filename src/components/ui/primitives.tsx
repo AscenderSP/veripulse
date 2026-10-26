@@ -122,3 +122,6 @@ export function Card({
     </div>
   );
 }
+
+export { CustomSelect, type SelectOption } from './CustomSelect';
+
