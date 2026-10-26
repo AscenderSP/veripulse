@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { Card, Button, Badge } from '@/components/ui/primitives';
 import { formatINR, formatVPCoins, inrToVPCoins, vpCoinsToINR, VPCOINS_PER_INR } from '@/lib/utils';
-import type { PayoutRequest, RedeemedVoucher, VoucherVendor } from '@/lib/types';
+import type { PayoutRequest, RedeemedVoucher, VoucherVendor, MasterTransaction } from '@/lib/types';
+import { subscribeMasterTransactions, recordMasterTransaction } from '@/lib/transactions';
 import { apiFetch } from '@/lib/api';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
@@ -114,6 +115,14 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
   const [editingUpi, setEditingUpi] = useState(false);
   const [upi, setUpi] = useState('');
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const [masterTxs, setMasterTxs] = useState<MasterTransaction[]>([]);
+  const [txFilter, setTxFilter] = useState<'all' | 'bounty' | 'payout' | 'voucher' | 'dividend' | 'affiliate'>('all');
+
+  useEffect(() => {
+    return subscribeMasterTransactions((txs) => {
+      setMasterTxs(txs);
+    });
+  }, []);
 
   const loadLive = useCallback(async () => {
     if (demo || !user) return;
@@ -208,6 +217,15 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
           { id: idemKey, amount_inr: requestedInr, bank_utr: `UPI${Math.floor(1000000000 + Math.random() * 9000000000)}`, status: 'processing', created_at: new Date().toISOString() },
           ...p,
         ]);
+        await recordMasterTransaction({
+          userId: profile?.id || 'user-citizen-me',
+          type: 'upi_withdrawal',
+          deltaInr: -requestedInr,
+          deltaVp: -requestedVp,
+          description: `UPI cashout to ${profile!.upi_id}`,
+          referenceId: idemKey,
+          metadata: { upiId: profile!.upi_id },
+        });
         setMsg(`Success: ${formatVPCoins(requestedVp)} (₹${requestedInr}) transferred to ${profile!.upi_id}.`);
       } else {
         const res = await apiFetch('/api/payouts/upi', {
@@ -278,6 +296,16 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
         if (error) throw error;
         await refreshProfile();
       }
+
+      await recordMasterTransaction({
+        userId: profile?.id || 'user-citizen-me',
+        type: 'voucher_redemption',
+        deltaInr: -inr,
+        deltaVp: -vpCost,
+        description: `Redeemed ₹${inr} ${vendor === 'amazon' ? 'Amazon Pay' : 'Flipkart'} Voucher (Code: ${code})`,
+        referenceId: newVoucher.id,
+        metadata: { vendor, code, pin },
+      });
 
       setVouchers((prev) => [newVoucher, ...prev]);
       setMsg(`🎉 Congratulations! Your ₹${inr} ${vendor === 'amazon' ? 'Amazon Pay Gift Card' : 'Flipkart Voucher'} is ready.`);
@@ -714,38 +742,139 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
         )}
       </Card>
 
-      {/* ── UPI Withdrawal Receipts ── */}
-      <Card className="p-4">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-content-primary">
-          <Receipt size={15} /> {t('payoutHistory', lang)}
-        </h3>
-        {payouts.length === 0 && <p className="text-xs text-content-muted">No withdrawals yet.</p>}
-        <div className="space-y-2 text-xs">
-          {payouts.map((p) => {
-            const [color, bg] = STATUS_COLOR[p.status] ?? STATUS_COLOR.queued;
-            const inr = Number(p.amount_inr);
-            const vp = inrToVPCoins(inr);
-            return (
-              <div key={p.id} className="flex items-center justify-between rounded-button bg-bg-primary px-3 py-2">
-                <div>
-                  <div className="font-medium text-content-primary flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-brand-emerald">{formatINR(inr)}</span>
-                    <span className="font-mono text-[10px] text-brand-amber">({formatVPCoins(vp)})</span>
-                  </div>
-                  <div className="font-mono text-[10px] text-content-muted">{p.bank_utr ? `UTR ${p.bank_utr}` : 'UTR pending'}</div>
-                </div>
-                <div className="text-right">
-                  <Badge color={color} bg={bg}>
-                    {p.status}
-                  </Badge>
-                  <div className="mt-0.5 text-[10px] text-content-muted">
-                    {new Date(p.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── UNIFIED MASTER TRANSACTION DATABASE LEDGER ── */}
+      <Card className="p-4 border-[var(--border-subtle)] space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-content-primary">
+                <Receipt size={16} className="text-brand-emerald" /> Master Transaction Database Ledger
+              </h3>
+              <Badge color="var(--brand-emerald)" bg="rgba(16,185,129,0.12)">
+                Unified Master DB
+              </Badge>
+            </div>
+            <p className="text-[11px] text-content-muted mt-0.5">
+              Single immutable ledger tracking all VPcoin and INR movements across bounties, payouts, vouchers, and dividends.
+            </p>
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1 text-[11px]">
+            {[
+              { id: 'all', label: `All (${masterTxs.length})` },
+              { id: 'bounty', label: 'Bounties' },
+              { id: 'payout', label: 'Cashouts' },
+              { id: 'voucher', label: 'Vouchers' },
+              { id: 'dividend', label: 'Dividends' },
+              { id: 'affiliate', label: 'Reviewer Share' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setTxFilter(f.id as any)}
+                className={`rounded-pill px-2.5 py-1 font-semibold transition-all ${
+                  txFilter === f.id
+                    ? 'bg-brand-emerald text-[#04110b]'
+                    : 'bg-bg-elevated text-content-muted hover:text-content-primary'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Transactions List */}
+        {(() => {
+          const filteredTxs = masterTxs.filter((tx) => {
+            if (txFilter === 'bounty') return tx.type.includes('bounty');
+            if (txFilter === 'payout') return tx.type.includes('upi') || tx.type.includes('payout');
+            if (txFilter === 'voucher') return tx.type.includes('voucher');
+            if (txFilter === 'dividend') return tx.type.includes('dividend');
+            if (txFilter === 'affiliate') return tx.type.includes('affiliate');
+            return true;
+          });
+
+          if (filteredTxs.length === 0) {
+            return (
+              <p className="py-6 text-center text-xs text-content-muted">
+                No transactions recorded in this category yet.
+              </p>
+            );
+          }
+
+          return (
+            <div className="space-y-2">
+              {filteredTxs.map((tx) => {
+                const isCredit = tx.deltaInr > 0;
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-button border border-[var(--border-subtle)] bg-bg-surface p-3 transition-colors hover:bg-bg-elevated/40 text-xs"
+                  >
+                    <div className="space-y-1 max-w-md">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-pill px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                            tx.type.includes('bounty')
+                              ? 'bg-brand-amber/20 text-brand-amber'
+                              : tx.type.includes('upi')
+                              ? 'bg-brand-rose/20 text-brand-rose'
+                              : tx.type.includes('voucher')
+                              ? 'bg-brand-sky/20 text-brand-sky'
+                              : 'bg-brand-emerald/20 text-brand-emerald'
+                          }`}
+                        >
+                          {tx.type.replace('_', ' ')}
+                        </span>
+                        <span className="text-[10px] text-content-muted">
+                          {new Date(tx.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+
+                      <p className="font-semibold text-content-primary leading-tight">
+                        {tx.description}
+                      </p>
+
+                      {tx.referenceId && (
+                        <div className="font-mono text-[10px] text-content-muted truncate">
+                          Ref: {tx.referenceId}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div
+                        className={`font-mono text-sm font-black ${
+                          isCredit ? 'text-brand-emerald' : 'text-brand-rose'
+                        }`}
+                      >
+                        {isCredit ? '+' : ''}
+                        {formatVPCoins(tx.deltaVp)}
+                      </div>
+                      <div className="font-mono text-[10px] text-content-muted">
+                        ({isCredit ? '+' : ''}
+                        {formatINR(tx.deltaInr)})
+                      </div>
+                      <Badge
+                        color={tx.status === 'settled' ? 'var(--brand-emerald)' : 'var(--brand-amber)'}
+                        bg={tx.status === 'settled' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'}
+                      >
+                        {tx.status}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </Card>
     </div>
   );

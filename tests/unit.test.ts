@@ -338,3 +338,68 @@ test('products: head-to-head battles and category-specific rankings integrity', 
     assert.ok(battle.metrics.length >= 3, 'Battle has at least 3 scorecard metrics');
   }
 });
+
+test('bounties: strict 2-hour expiration rule and time remaining formatting', async () => {
+  const { DEMO_BOUNTIES } = await import('../src/lib/demoData.ts');
+  const { isBountyExpired, formatBountyTimeRemaining, BOUNTY_EXPIRY_MS } = await import('../src/lib/bounties.ts');
+
+  assert.equal(BOUNTY_EXPIRY_MS, 2 * 60 * 60 * 1000, 'Bounty expiration is exactly 2 hours');
+
+  // Verify active bounty within 2 hours
+  const activeBounty = DEMO_BOUNTIES.find((b) => b.id === 'b-1')!;
+  assert.equal(isBountyExpired(activeBounty), false, 'b-1 is active');
+  assert.ok(formatBountyTimeRemaining(activeBounty).includes('left'), 'b-1 shows time remaining');
+
+  // Verify expired bounty older than 2 hours
+  const expiredBounty = DEMO_BOUNTIES.find((b) => b.id === 'b-5')!;
+  assert.equal(isBountyExpired(expiredBounty), true, 'b-5 is expired after 2 hours');
+  assert.equal(formatBountyTimeRemaining(expiredBounty), 'Expired');
+});
+
+test('bounty leaderboard: 24-hour active cycle and past historical archive', async () => {
+  const { DEMO_BOUNTY_CYCLES } = await import('../src/lib/demoData.ts');
+
+  assert.ok(DEMO_BOUNTY_CYCLES.length >= 3, 'Should have at least 3 leaderboard cycles');
+
+  // Active cycle
+  const activeCycle = DEMO_BOUNTY_CYCLES.find((c) => c.status === 'active')!;
+  assert.ok(activeCycle, 'Active cycle exists');
+  const activeDurationMs = new Date(activeCycle.endsAt).getTime() - new Date(activeCycle.startsAt).getTime();
+  assert.equal(activeDurationMs, 24 * 60 * 60 * 1000, 'Active cycle is exactly 24 hours');
+  assert.ok(activeCycle.rankings.length >= 3, 'Active cycle has ranked participants');
+  assert.ok(activeCycle.podiumWinners.length === 3, 'Active cycle has top 3 podium winners');
+
+  // Past cycles
+  const pastCycles = DEMO_BOUNTY_CYCLES.filter((c) => c.status === 'archived');
+  assert.ok(pastCycles.length >= 2, 'Past cycles are preserved for historical reference');
+  for (const pc of pastCycles) {
+    assert.ok(pc.totalBountiesCompleted > 0, 'Past cycle records verified bounties');
+    assert.ok(pc.totalVpDistributed > 0, 'Past cycle records distributed rewards');
+    assert.ok(pc.podiumWinners[0].rank === 1, 'Past cycle has Champion');
+  }
+});
+
+test('master database: records and tracks all transactions in a unified ledger', async () => {
+  const { recordMasterTransaction, getMasterTransactions } = await import('../src/lib/transactions.ts');
+
+  const initialCount = getMasterTransactions().length;
+  assert.ok(initialCount >= 5, 'Master DB contains pre-existing transaction history');
+
+  // Record a new bounty reward
+  const tx = await recordMasterTransaction({
+    userId: 'user-test',
+    type: 'bounty_reward',
+    deltaInr: 100,
+    deltaVp: 1000,
+    description: 'Verified test bounty claim',
+    referenceId: 'b-test-99',
+  });
+
+  assert.equal(tx.type, 'bounty_reward');
+  assert.equal(tx.deltaInr, 100);
+  assert.equal(tx.deltaVp, 1000);
+  assert.equal(tx.status, 'settled');
+
+  const afterCount = getMasterTransactions().length;
+  assert.equal(afterCount, initialCount + 1, 'Transaction recorded in master ledger');
+});

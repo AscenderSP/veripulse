@@ -451,7 +451,7 @@ export interface ServiceCenterReview {
   createdAt: string;
 }
 
-// ── Bounty Quests ───────────────────────────────────────────────────
+// ── Bounty Quests & 2-Hour Expiration ───────────────────────────────
 export type BountyType = 'news_verification' | 'product_telemetry' | 'service_center' | 'price_check';
 export type BountyStatus = 'open' | 'claimed' | 'completed' | 'expired';
 
@@ -468,10 +468,70 @@ export interface BountyQuest {
   lng?: number;
   radiusKm?: number;
   productId?: string;
-  expiresAt: string;
+  expiresAt: string; // Hard 2-hour limit from creation
   status: BountyStatus;
   claimedBy?: string;
   proofRequired: string;
+  createdAt: string;
+}
+
+// ── 24-Hour Bounty Leaderboard & Past Cycles ─────────────────────────
+export interface BountyLeaderboardUser {
+  rank: number;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  tier: 'sentinel_t1' | 'validator_t2' | 'citizen_t3';
+  bountiesCompleted: number;
+  vpCoinsEarned: number;
+  inrEarned: number;
+  accuracyPercent: number;
+  proofBadges: string[];
+}
+
+export interface BountyLeaderboardCycle {
+  cycleId: string;
+  cycleNumber: number;
+  cycleName: string;
+  cycleDate: string; // ISO date YYYY-MM-DD
+  startsAt: string;
+  endsAt: string; // 24 hours after startsAt
+  status: 'active' | 'archived';
+  totalBountiesCompleted: number;
+  totalVpDistributed: number;
+  totalInrDistributed: number;
+  podiumWinners: BountyLeaderboardUser[];
+  rankings: BountyLeaderboardUser[];
+}
+
+// ── Master Transaction Database Ledger ───────────────────────────────
+export type MasterTransactionType =
+  | 'bounty_reward'
+  | 'bounty_creation'
+  | 'sentinel_dividend'
+  | 'journalist_reward'
+  | 'upi_withdrawal'
+  | 'upi_reversal'
+  | 'voucher_redemption'
+  | 'affiliate_commission'
+  | 'referral_bonus'
+  | 'consensus_vote';
+
+export type MasterTransactionStatus = 'settled' | 'pending' | 'reversed' | 'failed';
+
+export interface MasterTransaction {
+  id: string;
+  userId: string;
+  type: MasterTransactionType;
+  deltaInr: number;
+  deltaVp: number;
+  balanceAfterInr: number;
+  balanceAfterVp: number;
+  status: MasterTransactionStatus;
+  description: string;
+  referenceId?: string;
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 
