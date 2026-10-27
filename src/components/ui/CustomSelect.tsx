@@ -123,7 +123,7 @@ export function CustomSelect<T extends string = string>({
           tabIndex={-1}
           className={cn(
             'absolute top-full mt-1.5 z-50 min-w-[190px] max-w-[280px] p-1.5 overflow-hidden',
-            'rounded-2xl border border-[var(--border-subtle)] bg-bg-surface/95 dark:bg-bg-elevated/95',
+            'rounded-2xl border border-[var(--border-strong)] bg-bg-elevated',
             'backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-150',
             align === 'right' ? 'right-0' : 'left-0',
             menuClassName,
