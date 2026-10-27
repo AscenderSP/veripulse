@@ -1172,7 +1172,7 @@ function StickyFilterBar({
 
   return (
     <div
-      className="sticky z-20 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary/95 backdrop-blur-md lg:top-0"
+      className="sticky z-20 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary backdrop-blur-md lg:!top-0"
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
     >
       <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar">
@@ -1204,26 +1204,28 @@ function StickyFilterBar({
           onClick={() => setC2paOnly(!c2paOnly)}
           aria-pressed={c2paOnly}
           className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+            'inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium shadow-xs transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-brand-emerald/50',
             c2paOnly
-              ? 'border-brand-emerald bg-brand-emerald text-[#04110b]'
-              : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+              ? 'border-brand-emerald bg-brand-emerald text-[#04110b] shadow-sm'
+              : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-emerald/40',
           )}
         >
-          <ShieldCheck size={12} /> C2PA
+          <ShieldCheck size={13} className={c2paOnly ? '' : 'text-content-muted'} />
+          C2PA
         </button>
         <button
           onClick={() => setSearchOpen(!searchOpen)}
           aria-label="Toggle search"
           aria-pressed={searchOpen || searchQuery.length > 0}
           className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+            'inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-medium shadow-xs transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-brand-sky/50',
             searchOpen || searchQuery.length > 0
-              ? 'border-brand-sky bg-brand-sky/15 text-brand-sky'
-              : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+              ? 'border-brand-sky bg-brand-sky/15 text-brand-sky shadow-sm'
+              : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-sky/40',
           )}
         >
-          <Search size={12} /> {searchQuery.length > 0 ? 'On' : ''}
+          <Search size={13} className={searchOpen || searchQuery.length > 0 ? '' : 'text-content-muted'} />
+          {searchQuery.length > 0 ? 'On' : ''}
         </button>
 
         {hasActiveFilter && (
@@ -1384,6 +1386,8 @@ function StickyFilterBar({
   );
 }
 
+// Chip style mirrors CustomSelect's `pill` variant so the entire control
+// surface reads as one component family.
 function FilterChip({
   icon,
   label,
@@ -1400,23 +1404,33 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
+      aria-haspopup="listbox"
       aria-expanded={open}
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border px-3 py-1.5 text-xs font-medium shadow-xs transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-brand-emerald/50',
         active
           ? 'border-brand-emerald bg-brand-emerald text-[#04110b] shadow-sm'
           : open
-            ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary'
-            : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+            ? 'border-brand-emerald bg-bg-elevated text-content-primary ring-1 ring-brand-emerald/30'
+            : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-emerald/40',
       )}
     >
-      {icon}
+      {icon && <span className="shrink-0 text-content-muted">{icon}</span>}
       <span className="max-w-[9rem] truncate">{label}</span>
-      <ChevronDown size={11} className={cn('transition-transform', open && 'rotate-180')} />
+      <ChevronDown
+        size={13}
+        className={cn(
+          'shrink-0 text-content-muted transition-transform duration-200',
+          open && 'rotate-180 text-brand-emerald',
+        )}
+      />
     </button>
   );
 }
 
+// Popover panel — matches CustomSelect's menu: rounded-2xl, border-strong,
+// bg-bg-elevated, backdrop blur, shadow-2xl, animated in. Sits inline below
+// the sticky chip row so it never gets clipped by the sticky container.
 function DropdownPanel({
   children,
   onClose,
@@ -1440,15 +1454,21 @@ function DropdownPanel({
     };
   }, [onClose]);
   return (
-    <div
-      ref={ref}
-      className="animate-fade-in max-h-80 overflow-y-auto border-t border-[var(--border-subtle)] bg-bg-elevated"
-    >
-      {children}
+    <div className="px-4 pb-3">
+      <div
+        ref={ref}
+        role="listbox"
+        tabIndex={-1}
+        className="animate-fade-in max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border-strong)] bg-bg-elevated p-1.5 shadow-2xl backdrop-blur-xl"
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
+// Row style mirrors CustomSelect's option: rounded-xl, px-2.5 py-2,
+// selected = brand-emerald/10 + bold, Check icon on the right.
 function DropdownRow({
   icon,
   label,
@@ -1465,22 +1485,23 @@ function DropdownRow({
   return (
     <button
       onClick={onClick}
+      role="option"
       aria-selected={selected}
       className={cn(
-        'flex w-full items-center gap-2 px-4 py-2 text-left text-[12px] transition',
+        'flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors',
         selected
-          ? 'bg-[var(--brand-emerald-glow)] text-content-primary'
+          ? 'bg-brand-emerald/10 font-bold text-brand-emerald'
           : 'text-content-secondary hover:bg-bg-primary hover:text-content-primary',
       )}
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-button bg-bg-primary">
-        {icon}
+      <span className="flex min-w-0 items-center gap-2 truncate">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">
+          <span>{label}</span>
+          {sub && <span className="ml-2 text-[10px] font-normal text-content-muted">{sub}</span>}
+        </span>
       </span>
-      <span className="flex-1 truncate">
-        <span className="font-semibold">{label}</span>
-        {sub && <span className="ml-2 text-[10px] text-content-muted">{sub}</span>}
-      </span>
-      {selected && <Check size={12} className="text-brand-emerald" />}
+      {selected && <Check size={13} className="shrink-0 text-brand-emerald" />}
     </button>
   );
 }

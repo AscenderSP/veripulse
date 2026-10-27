@@ -208,7 +208,7 @@ export function AppShell() {
             content scrolls underneath; the opaque background matches
             --bg-primary so content doesn't bleed through. */}
         <div
-          className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 bg-bg-primary/95 px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
+          className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 bg-bg-primary px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
         >
           <Brand compact lang={lang} />
