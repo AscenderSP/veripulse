@@ -20,7 +20,8 @@ import { stageMeta, timeAgo, cn } from '@/lib/utils';
 import { t } from '@/lib/translations';
 import { triggerVoteHaptic, shareStory } from '@/lib/nativeHardware';
 import { maybeShowInterstitial } from '@/lib/admob';
-import { getReferenceImage } from '@/lib/referenceImages';
+import { getReferenceImage, isStockImage } from '@/lib/referenceImages';
+import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { AudioReadout } from './AudioReadout';
 import { HoaxBreakdown } from './HoaxBreakdown';
 
@@ -43,6 +44,11 @@ export function StoryCard({
   const [voteError, setVoteError] = useState<string | null>(null);
   const [nodes, setNodes] = useState<StoryTimelineNode[] | null>(null);
   const meta = stageMeta(stage);
+
+  // The DB function substitutes a category stock URL into media_url when no
+  // real photo was attached, so nullness alone isn't enough; detect stock IDs.
+  const hasOwnImage = Boolean(story.media_url) && !isStockImage(story.media_url);
+  const relatedImage = useRelatedImage(story.titles[lang] ?? story.titles.en, !hasOwnImage);
 
   // Realtime pushes arrive as new props.
   useEffect(() => {
@@ -111,9 +117,11 @@ export function StoryCard({
         <span className="shrink-0 text-xs text-content-muted" suppressHydrationWarning>{timeAgo(story.created_at)}</span>
       </div>
 
-      {/* Visual media or curated reference image */}
+      {/* Visual media. Priority: user media > Wikipedia subject-related image > curated category stock */}
       {(() => {
-        const imageUrl = story.media_url || getReferenceImage(story.category);
+        const imageUrl = hasOwnImage
+          ? story.media_url!
+          : relatedImage ?? story.media_url ?? getReferenceImage(story.category);
         return (
           <div className="relative mx-4 mb-3 h-48 overflow-hidden rounded-xl bg-surface-sunken">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -129,7 +137,7 @@ export function StoryCard({
                   <ShieldCheck size={11} className="text-brand-emerald" />
                   <span>C2PA Verified</span>
                 </>
-              ) : story.media_url ? (
+              ) : hasOwnImage ? (
                 <span>Eyewitness Media</span>
               ) : (
                 <>
@@ -138,6 +146,11 @@ export function StoryCard({
                 </>
               )}
             </div>
+            {!hasOwnImage && (
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-[9px] leading-tight text-white/80 text-left">
+                Illustrative — not from scene
+              </div>
+            )}
           </div>
         );
       })()}

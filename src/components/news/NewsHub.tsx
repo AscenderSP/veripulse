@@ -51,7 +51,7 @@ import {
   calculateImpactEarnings,
 } from '@/lib/journalism';
 import { t } from '@/lib/translations';
-import { getReferenceImage, isNewsExpired, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
+import { getReferenceImage, isNewsExpired, isStockImage, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
@@ -68,10 +68,14 @@ function ArticleImage({
   titleText: string;
   size?: 'card' | 'detail';
 }) {
-  const hasVerifiedImage = Boolean(article.mediaUrl);
+  // Treat the DB-side category stock substitute as "no real image" so we fall
+  // through to the Wikipedia subject fetch instead of showing the same stock
+  // photo for every story in a category.
+  const hasVerifiedImage = Boolean(article.mediaUrl) && !isStockImage(article.mediaUrl);
   const relatedImage = useRelatedImage(titleText, !hasVerifiedImage);
-  const displayImage =
-    article.mediaUrl ?? relatedImage ?? getReferenceImage(article.category);
+  const displayImage = hasVerifiedImage
+    ? article.mediaUrl!
+    : relatedImage ?? article.mediaUrl ?? getReferenceImage(article.category);
 
   const wrapperCls =
     size === 'card'
