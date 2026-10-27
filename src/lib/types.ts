@@ -108,6 +108,9 @@ export interface Profile {
   journalist_employer?: string;
   auth_provider?: AuthProvider;
   is_admin?: boolean;
+  is_suspended?: boolean;
+  suspended_until?: string | null;
+  suspension_reason?: string;
   followers_count?: number;
   following_count?: number;
   created_at: string;
@@ -132,6 +135,10 @@ export interface Story {
   completeness_score: number;
   ad_impressions: number;
   source: string;
+  admin_taken_down?: boolean;
+  takedown_reason?: string;
+  taken_down_at?: string;
+  taken_down_by?: string;
   created_at: string;
   updated_at: string;
 }

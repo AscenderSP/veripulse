@@ -4,8 +4,10 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 import { ACCOUNT_TYPES } from './accountTiers';
 import type { AccountType, JournalistVerificationStatus, SubscriptionTier } from './types';
+import { createSupabaseAdminClient, getRequestUser } from './supabase/server';
 
 export interface AdminCheckResult {
   isAdmin: boolean;
@@ -32,6 +34,23 @@ export async function checkAdmin(
     return { isAdmin: true, reason: 'profile_flag' };
   }
   return { isAdmin: false, reason: 'denied' };
+}
+
+/**
+ * Guard used by every /api/admin/* route. Returns either a NextResponse
+ * (401 / 403) to short-circuit the handler, or a service-role admin client
+ * that bypasses RLS for the actual read/write.
+ */
+export async function requireAdmin() {
+  const { supabase, user } = await getRequestUser();
+  if (!user) {
+    return { error: NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 }) };
+  }
+  const result = await checkAdmin(supabase, user);
+  if (!result.isAdmin) {
+    return { error: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) };
+  }
+  return { admin: createSupabaseAdminClient(), adminUser: user };
 }
 
 export interface PostLimitState {
@@ -116,6 +135,21 @@ export async function checkPostLimit(
     journalistStatus,
     remaining,
   };
+
+  // Suspended users can't post anything, regardless of tier.
+  const { data: suspendRow } = await supabase
+    .from('profiles')
+    .select('is_suspended, suspended_until')
+    .eq('id', userId)
+    .single();
+  const suspendedRow = suspendRow as { is_suspended?: boolean; suspended_until?: string | null } | null;
+  const stillSuspended =
+    Boolean(suspendedRow?.is_suspended) &&
+    (!suspendedRow?.suspended_until ||
+      new Date(suspendedRow.suspended_until).getTime() > Date.now());
+  if (stillSuspended) {
+    return { allowed: false, reason: 'POST_FORBIDDEN', state: { ...state, dailyLimit: 0, remaining: 0 } };
+  }
 
   if (effectiveLimit === 0) {
     return { allowed: false, reason: 'POST_FORBIDDEN', state };

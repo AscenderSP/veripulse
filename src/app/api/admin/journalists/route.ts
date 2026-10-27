@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabase/server';
-import { checkAdmin } from '@/lib/admin';
+import { requireAdmin } from '@/lib/admin';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function guard() {
-  const { supabase, user } = await getRequestUser();
-  if (!user) return { error: NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 }) };
-  const result = await checkAdmin(supabase, user);
-  if (!result.isAdmin) return { error: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) };
-  return { admin: createSupabaseAdminClient() };
-}
+const guard = requireAdmin;
 
 /**
  * GET /api/admin/journalists?status=pending|approved|rejected

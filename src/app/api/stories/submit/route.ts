@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
       const { reason, state } = limitDecision;
       const human =
         reason === 'POST_FORBIDDEN'
-          ? 'Your account tier (Reader) can’t post. Upgrade to Citizen Reporter or above.'
+          ? state.dailyLimit === 0 && state.remaining === 0
+            ? 'Your account is suspended or set to Reader. Appeal via support if this is a mistake.'
+            : 'Your account tier (Reader) can’t post. Upgrade to Citizen Reporter or above.'
           : reason === 'JOURNALIST_PENDING_LIMIT_REACHED'
             ? `You’ve used ${state.postsLast24h}/${state.dailyLimit} posts while your press credentials are under review. Try again tomorrow.`
             : reason === 'SUBSCRIPTION_EXPIRED'
