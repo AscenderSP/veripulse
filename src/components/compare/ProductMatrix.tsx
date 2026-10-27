@@ -59,6 +59,97 @@ import { DecayIndex } from '@/components/product/DecayIndex';
 import { AskOwner } from '@/components/product/AskOwner';
 import { ServiceRadar } from '@/components/product/ServiceRadar';
 import { AICopilot } from '@/components/product/AICopilot';
+import { useRelatedImage } from '@/hooks/useRelatedImage';
+
+/** Hero image for a product card. Uses the submitted `imageUrl` if present,
+ *  otherwise fetches a related image from Wikipedia using the product name as
+ *  the query, with a solid category tile as the last-resort fallback. The
+ *  card's key details (brand, name, rating, option tags) are drawn as
+ *  overlays on top of the image, with a "Reference Image" disclaimer when the
+ *  photo wasn't supplied by the owner. */
+function ProductCardImage({
+  product,
+  onOpen,
+}: {
+  product: Product;
+  onOpen: () => void;
+}) {
+  const hasOwnImage = Boolean(product.imageUrl);
+  const query = `${product.brand ?? ''} ${product.name}`.trim();
+  const related = useRelatedImage(query, !hasOwnImage);
+  const src = product.imageUrl ?? related ?? null;
+
+  return (
+    <div
+      onClick={onOpen}
+      className="relative mb-3 h-40 w-full cursor-pointer overflow-hidden rounded-card border border-[var(--border-subtle)] bg-gradient-to-br from-bg-elevated via-bg-surface to-bg-elevated"
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={product.name}
+          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+          {product.category}
+        </div>
+      )}
+
+      {/* Dark gradient so overlay text stays legible on any photo */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/50" />
+
+      {/* Top-left: brand chip. Top-right: rating badge. */}
+      <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between">
+        <span className="rounded-pill bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-sm">
+          {product.brand ?? product.category}
+        </span>
+        {product.owner_rating != null && (
+          <span className="flex items-center gap-1 rounded-pill bg-brand-amber/90 px-2 py-0.5 text-[10px] font-black text-[#1a0d00] backdrop-blur-sm">
+            <Star size={11} className="fill-current" />
+            {product.owner_rating.toFixed(1)}
+          </span>
+        )}
+      </div>
+
+      {/* Bottom overlay: product name, options, verified-owner count. */}
+      <div className="pointer-events-none absolute inset-x-2 bottom-2 space-y-1">
+        <h3 className="text-sm font-extrabold leading-tight text-white drop-shadow-md line-clamp-2">
+          {product.name}
+        </h3>
+        <div className="flex flex-wrap items-center gap-1 text-[9px] font-semibold">
+          {product.verified_owners > 0 && (
+            <span className="rounded-pill bg-brand-emerald/90 px-1.5 py-0.5 text-[9px] font-bold text-[#04110b]">
+              {product.verified_owners} verified
+            </span>
+          )}
+          {product.reliabilityGrade && (
+            <span className="rounded-pill bg-brand-sky/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              Grade {product.reliabilityGrade}
+            </span>
+          )}
+          {product.options?.slice(0, 2).map((opt) => (
+            <span
+              key={opt}
+              className="rounded-pill bg-white/15 px-1.5 py-0.5 text-[9px] font-medium capitalize text-white/90 backdrop-blur-sm"
+            >
+              #{opt}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Disclaimer for non-owner-supplied images. */}
+      {!hasOwnImage && (
+        <div className="pointer-events-none absolute left-2 top-9 flex items-center gap-1 rounded-pill bg-black/55 px-1.5 py-0.5 text-[8.5px] font-medium text-white/80 backdrop-blur-sm">
+          <Sparkles size={9} className="text-brand-amber" /> Reference Image
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ProductMatrix() {
   const { profile, user } = useSession();
@@ -1479,6 +1570,9 @@ export function ProductMatrix() {
               )}
             >
               <div>
+                {/* Hero image with brand / rating / name / tag overlays */}
+                <ProductCardImage product={p} onOpen={() => setDetailProduct(p)} />
+
                 {/* Header: Title, Category Badge, Price */}
                 <div className="flex items-start justify-between gap-2">
                   <div>

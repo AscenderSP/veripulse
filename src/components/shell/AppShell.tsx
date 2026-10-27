@@ -49,6 +49,21 @@ import { t, UI_STRINGS } from '@/lib/translations';
 
 type Section = 'feed' | 'news' | 'vault' | 'compare' | 'earn' | 'scanner' | 'passport' | 'sentinel' | 'wallet' | 'profile' | 'compose';
 
+const SECTION_STORAGE_KEY = 'veripulse_active_section_v1';
+const VALID_SECTIONS: Section[] = [
+  'feed', 'news', 'vault', 'compare', 'earn', 'scanner',
+  'passport', 'sentinel', 'wallet', 'profile', 'compose',
+];
+
+function readPersistedSection(): Section {
+  if (typeof window === 'undefined') return 'feed';
+  try {
+    const saved = window.localStorage.getItem(SECTION_STORAGE_KEY);
+    if (saved && (VALID_SECTIONS as string[]).includes(saved)) return saved as Section;
+  } catch {}
+  return 'feed';
+}
+
 const NAV: { id: Section; label: string; icon: React.ReactNode; color: string }[] = [
   { id: 'feed', label: 'Live Circle', icon: <Radio size={18} />, color: 'var(--brand-emerald)' },
   { id: 'news', label: 'News Hub', icon: <Newspaper size={18} />, color: 'var(--brand-sky)' },
@@ -80,6 +95,9 @@ function useQuarantineCount(): number {
 }
 
 export function AppShell() {
+  // Start on 'feed' for first render so SSR and the first client render match,
+  // then rehydrate from localStorage so a refresh keeps the user on the same
+  // section instead of snapping back to the landing feed.
   const [section, setSection] = useState<Section>('feed');
   const [prevSection, setPrevSection] = useState<Section>('feed');
   const [verifyOpen, setVerifyOpen] = useState(false);
@@ -89,12 +107,33 @@ export function AppShell() {
   const { profile } = useSession();
   const { lang } = useLang();
 
+  // Rehydrate the active section from localStorage once on mount so refresh
+  // doesn't bounce the user back to Live Circle.
+  useEffect(() => {
+    const persisted = readPersistedSection();
+    if (persisted !== 'feed') {
+      setSection(persisted);
+      setSectionKey((k) => k + 1);
+    }
+  }, []);
+
   const switchSection = useCallback((s: Section) => {
     if (s === section) return;
     setPrevSection(section);
     setSection(s);
     setSectionKey((k) => k + 1);
+    try {
+      window.localStorage.setItem(SECTION_STORAGE_KEY, s);
+    } catch {}
     window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [section]);
+
+  // Also persist whenever `section` changes via other paths (e.g. deep links
+  // or compose-cancel reverting to the previous section).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SECTION_STORAGE_KEY, section);
+    } catch {}
   }, [section]);
 
   useEffect(() => {
