@@ -107,6 +107,7 @@ export interface Profile {
   journalist_verification_status?: JournalistVerificationStatus;
   journalist_employer?: string;
   auth_provider?: AuthProvider;
+  is_admin?: boolean;
   followers_count?: number;
   following_count?: number;
   created_at: string;

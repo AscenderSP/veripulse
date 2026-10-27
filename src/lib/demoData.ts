@@ -46,6 +46,7 @@ export const DEMO_PROFILE: Profile = {
   journalist_verification_status: 'approved',
   journalist_employer: 'Independent · PIB-accredited',
   auth_provider: 'preset',
+  is_admin: true,
   followers_count: 342,
   following_count: 89,
   social_links: {

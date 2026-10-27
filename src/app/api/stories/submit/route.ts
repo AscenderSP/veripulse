@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser, createSupabaseAdminClient } from '@/lib/supabase/server';
 import { analyzeStory, embedText } from '@/lib/gemini';
 import { getReferenceImage } from '@/lib/referenceImages';
+import { checkPostLimit } from '@/lib/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,27 @@ export async function POST(req: NextRequest) {
     const { user } = await getRequestUser();
     if (!user) {
       return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 });
+    }
+
+    // Daily post-limit guard — read with service role so it never races the
+    // caller's RLS view of their own profile (edge case: a new row that
+    // hasn't yet replicated to the user's session).
+    const limitClient = createSupabaseAdminClient();
+    const limitDecision = await checkPostLimit(limitClient, user.id);
+    if (!limitDecision.allowed) {
+      const { reason, state } = limitDecision;
+      const human =
+        reason === 'POST_FORBIDDEN'
+          ? 'Your account tier (Reader) can’t post. Upgrade to Citizen Reporter or above.'
+          : reason === 'JOURNALIST_PENDING_LIMIT_REACHED'
+            ? `You’ve used ${state.postsLast24h}/${state.dailyLimit} posts while your press credentials are under review. Try again tomorrow.`
+            : reason === 'SUBSCRIPTION_EXPIRED'
+              ? 'Your Pro subscription has lapsed. You’ve been dropped to the free limit for now.'
+              : `Daily post limit reached (${state.postsLast24h}/${state.dailyLimit}). Try again in 24h or upgrade.`;
+      return NextResponse.json(
+        { error: reason, message: human, state },
+        { status: 429 },
+      );
     }
 
     const body = await req.json();

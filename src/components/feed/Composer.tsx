@@ -93,7 +93,7 @@ export function Composer({
         });
         if (!res) return;
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Failed');
+        if (!res.ok) throw new Error(data.message ?? data.error ?? 'Failed');
         setMsg(
           data.action === 'merged_timeline'
             ? 'Merged into an existing story as a timeline update.'
