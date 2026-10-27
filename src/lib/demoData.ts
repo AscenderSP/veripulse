@@ -39,6 +39,13 @@ export const DEMO_PROFILE: Profile = {
   press_pass_expiry: '2027-12-31',
   press_credential_id: 'PIB-PRESS-2026-9812',
   journalist_earnings_inr: 890.0,
+  account_type: 'journalist',
+  subscription_tier: 'press',
+  daily_post_limit: -1,
+  posts_today: 3,
+  journalist_verification_status: 'approved',
+  journalist_employer: 'Independent · PIB-accredited',
+  auth_provider: 'preset',
   followers_count: 342,
   following_count: 89,
   social_links: {

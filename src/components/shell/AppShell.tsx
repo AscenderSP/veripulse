@@ -28,6 +28,7 @@ import { LangSwitch } from './LangSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
 import { AuthSheet } from './AuthSheet';
+import { ReviewPrompt } from './ReviewPrompt';
 import { AreaSwitcher, GLOBAL_AREA, type Area } from './AreaSwitcher';
 import { Feed } from '@/components/feed/Feed';
 import { Composer } from '@/components/feed/Composer';
@@ -245,6 +246,7 @@ export function AppShell() {
 
       <VerifyDrawer open={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <AuthSheet />
+      <ReviewPrompt />
     </div>
   );
 }

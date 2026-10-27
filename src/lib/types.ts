@@ -14,6 +14,10 @@ export interface LiveNewsItem {
 export type Lang = 'en' | 'bn' | 'hi';
 export type UserTier = 'sentinel_t1' | 'validator_t2' | 'public';
 export type StoryStage = 'tier_1' | 'tier_2' | 'public' | 'quarantined';
+export type AccountType = 'reader' | 'citizen_reporter' | 'pro_reporter' | 'journalist';
+export type SubscriptionTier = 'free' | 'pro' | 'press';
+export type JournalistVerificationStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type AuthProvider = 'email' | 'google' | 'phone' | 'digilocker' | 'preset';
 export type VoteAction = 'real' | 'hoax' | 'needs_context';
 export type DocType = 'vehicle_rc' | 'gst_invoice';
 export type PayoutStatus =
@@ -95,6 +99,14 @@ export interface Profile {
   press_pass_expiry?: string;
   press_credential_id?: string;
   journalist_earnings_inr?: number;
+  account_type?: AccountType;
+  subscription_tier?: SubscriptionTier;
+  subscription_expires_at?: string;
+  daily_post_limit?: number; // 0 = none, -1 = unlimited
+  posts_today?: number;
+  journalist_verification_status?: JournalistVerificationStatus;
+  journalist_employer?: string;
+  auth_provider?: AuthProvider;
   followers_count?: number;
   following_count?: number;
   created_at: string;
