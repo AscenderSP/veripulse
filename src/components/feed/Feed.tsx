@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Map as MapIcon, List, RefreshCw } from 'lucide-react';
 import type { Story, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { StoryCard, type VoteOutcome } from './StoryCard';
-import { Composer } from './Composer';
 import { AdSlot } from './AdSlot';
 import { IncidentMap } from './IncidentMap';
 import { DEMO_STORIES, DEMO_TIMELINE, isSupabaseConfigured } from '@/lib/demoData';
@@ -273,8 +272,6 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
         <IncidentMap stories={stories} onSelectStory={handleSelectIncidentStory} />
       ) : (
         <>
-          {!vault && <Composer onSubmitted={load} />}
-
           {loading ? (
             <div className="space-y-3">
               <StoryCardSkeleton />

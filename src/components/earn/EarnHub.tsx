@@ -38,8 +38,12 @@ export function EarnHub({ onVerify }: { onVerify?: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Top Navigation Tabs for Earning Streams */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+      {/* Top Navigation Tabs for Earning Streams. Sticky to match
+          NewsHub / Product Hub. */}
+      <div
+        className="sticky z-20 -mx-4 flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md scrollbar-none lg:!top-0"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+      >
         <button
           onClick={() => setTab('bounties')}
           className={`flex shrink-0 items-center gap-1.5 rounded-button px-3.5 py-2 text-xs font-bold transition-all ${

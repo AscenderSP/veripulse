@@ -747,8 +747,15 @@ export function ProductMatrix() {
 
   return (
     <div className="space-y-4">
-      {/* ── Product Hub Sub-Feature Tabs ── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+      {/* ── Product Hub Sub-Feature Tabs ──
+          Sticky bar matching NewsHub's filter chrome: fully opaque
+          bg-bg-primary, backdrop blur, border-b. Docks right under the
+          global top bar on mobile and under the center-rail top on
+          desktop. */}
+      <div
+        className="sticky z-20 -mx-4 flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md scrollbar-none lg:!top-0"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+      >
         <button
           onClick={() => setHubTab('browse')}
           className={`flex shrink-0 items-center gap-1.5 rounded-button px-3.5 py-2 text-xs font-bold transition-all ${
