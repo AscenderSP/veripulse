@@ -164,4 +164,54 @@ export async function triggerVoteHaptic(): Promise<void> {
   }
 }
 
+/** Light tap for incidental UI interactions (nav switches, chips). */
+export async function triggerTapHaptic(): Promise<void> {
+  if (isNative()) {
+    try {
+      const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+      await Haptics.impact({ style: ImpactStyle.Light });
+      return;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate(8);
+  }
+}
+
+/** Soft selection tick for pill switches, segmented controls. */
+export async function triggerSelectionHaptic(): Promise<void> {
+  if (isNative()) {
+    try {
+      const { Haptics } = await import('@capacitor/haptics');
+      await Haptics.selectionStart();
+      await Haptics.selectionChanged();
+      await Haptics.selectionEnd();
+      return;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate(6);
+  }
+}
+
+/** Success buzz — call after a confirmed irreversible action. */
+export async function triggerSuccessHaptic(): Promise<void> {
+  if (isNative()) {
+    try {
+      const { Haptics, NotificationType } = await import('@capacitor/haptics');
+      await Haptics.notification({ type: NotificationType.Success });
+      return;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([10, 40, 20]);
+  }
+}
+
 export { isNative };

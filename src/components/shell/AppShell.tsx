@@ -22,8 +22,10 @@ import {
   Sparkles,
   ArrowLeft,
   Coins,
+  Activity,
 } from 'lucide-react';
 import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
+import { triggerTapHaptic } from '@/lib/nativeHardware';
 import { LangSwitch } from './LangSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
@@ -104,6 +106,7 @@ export function AppShell() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [area, setArea] = useState<Area>(GLOBAL_AREA);
   const [sectionKey, setSectionKey] = useState(0);
+  const [pulseOpen, setPulseOpen] = useState(false);
   const vaultCount = useQuarantineCount();
   const { profile } = useSession();
   const { lang } = useLang();
@@ -182,14 +185,26 @@ export function AppShell() {
       </aside>
 
       {/* ── Center Column ── */}
-      <main className="safe-top safe-bottom min-w-0 flex-1 px-4 py-4 lg:max-w-center lg:px-6 lg:pb-8">
-        {/* Mobile top bar */}
-        <div className="mb-4 flex items-center justify-between gap-2 lg:hidden">
+      <main className="pt-mobile-top safe-bottom min-w-0 flex-1 px-4 py-4 lg:max-w-center lg:px-6 lg:pb-8">
+        {/* Mobile top bar. mt-2 gives extra breathing room under the status
+            bar / notch, on top of safe-top padding on <main>. */}
+        <div className="mb-4 mt-2 flex items-center justify-between gap-2 lg:hidden">
           <Brand compact lang={lang} />
           <div className="flex items-center gap-1.5">
             {section === 'feed' && <AreaSwitcher area={area} onChange={setArea} compact />}
             <LangSwitch compact />
             <ThemeToggle compact />
+            <button
+              onClick={async () => {
+                await triggerTapHaptic();
+                setPulseOpen(true);
+              }}
+              aria-label="Live pulse"
+              className="press-effect relative flex h-7 w-7 items-center justify-center rounded-full glass text-brand-sky"
+            >
+              <Activity size={14} />
+              <span className="pulse-dot absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-brand-rose" />
+            </button>
             <AccountChip compact onOpenProfile={() => switchSection('profile')} lang={lang} />
           </div>
         </div>
@@ -247,6 +262,60 @@ export function AppShell() {
       <VerifyDrawer open={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <AuthSheet />
       <ReviewPrompt />
+      <PulseDrawer
+        open={pulseOpen}
+        onClose={() => setPulseOpen(false)}
+        onNavigate={(s) => {
+          setPulseOpen(false);
+          switchSection(s);
+        }}
+      />
+    </div>
+  );
+}
+
+function PulseDrawer({
+  open,
+  onClose,
+  onNavigate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onNavigate: (s: Section) => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex lg:hidden"
+      role="dialog"
+      aria-modal
+      aria-label="Live pulse"
+    >
+      <div className="sheet-overlay absolute inset-0" onClick={onClose} />
+      <div
+        className="relative ml-auto flex h-full w-full max-w-[22rem] animate-slide-in-right flex-col glass-heavy"
+        style={{ borderLeft: '1px solid var(--glass-border)' }}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+        >
+          <div className="flex items-center gap-2">
+            <Activity size={16} className="text-brand-sky" />
+            <h2 className="text-sm font-bold text-content-primary">Live Pulse</h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="press-effect flex h-7 w-7 items-center justify-center rounded-full glass text-content-muted hover:text-content-primary"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+          <RightRail onNavigate={onNavigate} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -416,7 +485,10 @@ function MobileNav({
       <TabButton active={section === 'feed'} onClick={() => setSection('feed')} icon={<Radio size={20} />} label={t('tab_circle', lang)} color="var(--brand-emerald)" pulse />
       <TabButton active={section === 'news'} onClick={() => setSection('news')} icon={<Newspaper size={20} />} label={t('tab_news', lang)} color="var(--brand-sky)" />
       <button
-        onClick={onPost}
+        onClick={async () => {
+          await triggerTapHaptic();
+          onPost();
+        }}
         aria-label="Post report"
         className="post-glow -mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-emerald text-[#04110b] press-effect"
       >
@@ -453,7 +525,10 @@ function TabButton({
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={async () => {
+        await triggerTapHaptic();
+        onClick();
+      }}
       className={cn(
         'press-effect relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-all duration-300',
         active ? 'text-content-primary' : 'text-content-muted',

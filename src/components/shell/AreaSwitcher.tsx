@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Globe2, MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCurrentCoords } from '@/lib/nativeHardware';
+import { getCurrentCoords, triggerSelectionHaptic } from '@/lib/nativeHardware';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -60,7 +60,11 @@ export function AreaSwitcher({
   if (compact) {
     return (
       <button
-        onClick={() => (local ? onChange(GLOBAL_AREA) : goHyperlocal())}
+        onClick={async () => {
+          await triggerSelectionHaptic();
+          if (local) onChange(GLOBAL_AREA);
+          else await goHyperlocal();
+        }}
         aria-label={local ? t('area_global', lang) : t('area_hyperlocal', lang)}
         className="flex items-center gap-1 rounded-pill border border-[var(--border-subtle)] bg-bg-elevated px-2.5 py-1 text-xs font-semibold text-content-secondary"
       >

@@ -3,6 +3,7 @@
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
+import { triggerTapHaptic } from '@/lib/nativeHardware';
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { theme, toggleTheme } = useTheme();
@@ -10,7 +11,10 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
 
   return (
     <button
-      onClick={toggleTheme}
+      onClick={async () => {
+        await triggerTapHaptic();
+        toggleTheme();
+      }}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       className={cn(
