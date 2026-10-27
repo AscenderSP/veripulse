@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/primitives';
 import type { Profile } from '@/lib/types';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
 import { AuthSheet } from '@/components/shell/AuthSheet';
+import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PROFILE } from '@/lib/demoData';
 
 interface AdminStats {
   pendingJournalists: number;
@@ -78,7 +79,7 @@ const DEMO_PENDING: JournalistRow[] = [
 ];
 
 export default function AdminPage() {
-  const { demo, profile, user, setAuthOpen } = useSession();
+  const { demo, profile, user, setAuthOpen, signInPreset, signOut } = useSession();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -228,8 +229,21 @@ export default function AdminPage() {
           icon={LogIn}
           title="Sign in required"
           body="The admin console is only for VeriPulse operations staff. Sign in with your admin account."
-          action={<Button onClick={() => setAuthOpen(true)}>Open sign-in</Button>}
+          action={
+            <div className="flex flex-col items-center gap-2">
+              <Button onClick={() => setAuthOpen(true)}>Open sign-in</Button>
+              {demo && (
+                <button
+                  onClick={() => signInPreset(DEMO_ADMIN_PROFILE)}
+                  className="press-effect rounded-button border border-[var(--border-strong)] bg-bg-primary px-3 py-2 text-[11px] font-semibold text-content-primary"
+                >
+                  Sign in as demo admin
+                </button>
+              )}
+            </div>
+          }
         />
+        {demo && <DemoAdminCredentialsCard />}
       </AdminFrame>
     );
   }
@@ -242,18 +256,32 @@ export default function AdminPage() {
           title="Not authorized"
           body={
             demo
-              ? 'This demo profile isn’t marked as admin. Sign in as sayantan_pulse (the demo admin) to continue.'
+              ? `You’re signed in as @${profile?.username ?? 'guest'}, which isn’t an admin account. Sign out and use the dummy admin credentials below.`
               : 'Your account isn’t on the admin allowlist. Set is_admin on your profile or add your email to ADMIN_EMAILS.'
           }
           action={
-            <Link
-              href="/"
-              className="press-effect rounded-button bg-brand-emerald px-3 py-2 text-xs font-semibold text-white"
-            >
-              Back to app
-            </Link>
+            <div className="flex items-center gap-2">
+              {demo && (
+                <button
+                  onClick={async () => {
+                    await signOut();
+                    signInPreset(DEMO_ADMIN_PROFILE);
+                  }}
+                  className="press-effect rounded-button bg-brand-emerald px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Switch to admin
+                </button>
+              )}
+              <Link
+                href="/"
+                className="press-effect rounded-button border border-[var(--border-strong)] px-3 py-2 text-xs font-semibold text-content-primary"
+              >
+                Back to app
+              </Link>
+            </div>
           }
         />
+        {demo && <DemoAdminCredentialsCard />}
       </AdminFrame>
     );
   }
@@ -298,11 +326,12 @@ export default function AdminPage() {
 }
 
 function AdminFrame({ children }: { children: React.ReactNode }) {
+  const { profile, signOut } = useSession();
   return (
     <div className="min-h-screen bg-bg-primary">
       <header className="sticky top-0 z-10 border-b border-[var(--border-subtle)] bg-bg-primary/90 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Link
               href="/"
               aria-label="Back"
@@ -311,11 +340,21 @@ function AdminFrame({ children }: { children: React.ReactNode }) {
               <ArrowLeft size={14} />
             </Link>
             <ShieldCheck size={18} className="text-brand-emerald" />
-            <h1 className="text-sm font-bold text-content-primary">VeriPulse Admin</h1>
+            <h1 className="truncate text-sm font-bold text-content-primary">VeriPulse Admin</h1>
           </div>
-          <span className="rounded-full bg-brand-emerald/15 px-2 py-0.5 text-[10px] font-semibold text-brand-emerald">
-            Ops console
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full bg-brand-emerald/15 px-2 py-0.5 text-[10px] font-semibold text-brand-emerald sm:inline">
+              Ops console
+            </span>
+            {profile?.is_admin && (
+              <button
+                onClick={() => void signOut()}
+                className="press-effect rounded-button border border-[var(--border-subtle)] px-2.5 py-1 text-[11px] font-semibold text-content-secondary hover:border-brand-rose/60 hover:text-brand-rose"
+              >
+                Sign out
+              </button>
+            )}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl p-4 pb-16">{children}</main>
@@ -489,6 +528,30 @@ function PerksCard() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function DemoAdminCredentialsCard() {
+  return (
+    <div className="mx-auto mt-4 max-w-md rounded-xl border border-brand-amber/40 bg-brand-amber/10 p-4 text-[11px] text-content-secondary">
+      <p className="text-xs font-bold text-content-primary">Demo admin credentials</p>
+      <p className="mt-1">
+        Use these to log into the admin console while VeriPulse is in demo mode (no live Supabase):
+      </p>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
+        <dt className="text-content-muted">Email</dt>
+        <dd className="text-content-primary">{DEMO_ADMIN_EMAIL}</dd>
+        <dt className="text-content-muted">Password</dt>
+        <dd className="text-content-primary">any (magic link, no password)</dd>
+        <dt className="text-content-muted">Username</dt>
+        <dd className="text-content-primary">@{DEMO_ADMIN_PROFILE.username}</dd>
+      </dl>
+      <p className="mt-2 text-[10px] text-content-muted">
+        This is a demo-only account. In production, grant admin via{' '}
+        <span className="font-mono">profiles.is_admin = true</span> or the{' '}
+        <span className="font-mono">ADMIN_EMAILS</span> env list.
+      </p>
     </div>
   );
 }

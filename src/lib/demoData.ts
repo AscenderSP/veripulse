@@ -46,7 +46,7 @@ export const DEMO_PROFILE: Profile = {
   journalist_verification_status: 'approved',
   journalist_employer: 'Independent · PIB-accredited',
   auth_provider: 'preset',
-  is_admin: true,
+  is_admin: false,
   followers_count: 342,
   following_count: 89,
   social_links: {
@@ -58,6 +58,47 @@ export const DEMO_PROFILE: Profile = {
     website: 'https://veripulse.in/u/sayantan_pulse',
   },
   created_at: new Date(Date.now() - 86400000 * 120).toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+// Dedicated demo admin. Only this profile gets is_admin = true in demo mode,
+// so random sign-ins can never inherit admin by accident. Credentials:
+// email `admin@veripulse.local` (any password) via Sign in → Email magic link,
+// or the "Sign in as admin" button on the /admin gate.
+export const DEMO_ADMIN_EMAIL = 'admin@veripulse.local';
+export const DEMO_ADMIN_PROFILE: Profile = {
+  id: 'user-veripulse-admin',
+  username: 'veripulse_admin',
+  full_name: 'VeriPulse Ops',
+  avatar_url:
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=240&q=80',
+  bio: 'VeriPulse operations · admin console only · internal account.',
+  city: 'VeriPulse HQ',
+  trust_score: 100,
+  tier: 'sentinel_t1',
+  badge: 'Platform Admin',
+  correct_votes: 0,
+  total_votes: 0,
+  wallet_balance_inr: 0,
+  upi_id: null,
+  home_lat: null,
+  home_lng: null,
+  preferred_lang: 'en',
+  is_id_verified: true,
+  is_ownership_verified: false,
+  is_sentinel_verified: true,
+  is_journalist_verified: false,
+  is_press_pass_paid: false,
+  journalist_verification_status: 'none',
+  account_type: 'reader',
+  subscription_tier: 'free',
+  daily_post_limit: 0,
+  posts_today: 0,
+  auth_provider: 'preset',
+  is_admin: true,
+  followers_count: 0,
+  following_count: 0,
+  created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
 

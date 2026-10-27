@@ -3,7 +3,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { AccountType, AppNotification, Profile, SubscriptionTier, UserContact } from '@/lib/types';
-import { DEMO_PROFILE, DEMO_PHONE_CONTACTS, DEMO_NETWORK_USERS, isSupabaseConfigured } from '@/lib/demoData';
+import {
+  DEMO_PROFILE,
+  DEMO_PHONE_CONTACTS,
+  DEMO_NETWORK_USERS,
+  DEMO_ADMIN_PROFILE,
+  DEMO_ADMIN_EMAIL,
+  isSupabaseConfigured,
+} from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { ACCOUNT_TYPES, accountTypeDefaults } from '@/lib/accountTiers';
 
@@ -188,7 +195,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async signInWithEmail(email) {
       if (demo) {
-        // Mock email sign in
+        const trimmed = email.trim().toLowerCase();
+        // Magic admin email — only path to the admin preset in demo mode.
+        if (trimmed === DEMO_ADMIN_EMAIL) {
+          persistProfile({ ...DEMO_ADMIN_PROFILE });
+          return {};
+        }
+        // Normal demo sign in — never inherits admin.
         const newProf: Profile = {
           ...DEMO_PROFILE,
           id: `usr-${Date.now().toString(36)}`,
@@ -197,6 +210,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           wallet_balance_inr: 250,
           trust_score: 75.0,
           auth_provider: 'email',
+          is_admin: false,
         };
         persistProfile(newProf);
         return {};
@@ -229,6 +243,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           journalist_verification_status: 'none',
           journalist_earnings_inr: 0,
           auth_provider: 'google',
+          is_admin: false,
           ...accountTypeDefaults('reader'),
         };
         persistProfile(prof);
@@ -265,6 +280,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         is_press_pass_paid: false,
         journalist_verification_status: 'none',
         auth_provider: 'digilocker',
+        is_admin: false,
         ...accountTypeDefaults('citizen_reporter'),
       };
       persistProfile(prof);
@@ -283,11 +299,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         tier: 'validator_t2',
         badge: 'Verified Citizen',
         wallet_balance_inr: 300,
+        is_admin: false,
       };
       persistProfile(prof);
       return {};
     },
 
+    // Preset sign-in trusts the caller — only used by internal demo flows
+    // (e.g. the "Sign in as admin" button on /admin). The preset's own
+    // is_admin value stands; nothing silently promotes a non-admin preset.
     signInPreset(preset) {
       persistProfile({ ...preset });
     },
@@ -326,6 +346,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         daily_post_limit: meta.dailyPostLimit,
         posts_today: 0,
         auth_provider: input.emailOrPhone.includes('@') ? 'email' : 'phone',
+        is_admin: false,
         followers_count: 0,
         following_count: 2,
         social_links: {
