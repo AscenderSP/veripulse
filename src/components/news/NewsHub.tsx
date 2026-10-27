@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Landmark,
   TrendingUp,
@@ -181,6 +181,7 @@ export function NewsHub() {
   const [sortBy, setSortBy] = useState<'latest' | 'credibility' | 'fastest'>('latest');
   const [c2paOnly, setC2paOnly] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // In-memory article cache for instant 0ms tab navigation
   const [articles, setArticles] = useState<NewsArticle[]>(() => {
@@ -376,6 +377,24 @@ export function NewsHub() {
       setFileDispatchOpen(true);
     }
   };
+
+  // The global PostFab sets this sessionStorage flag when the user picks
+  // "File News Dispatch" from any section — on arrival at NewsHub we drop
+  // straight into the dispatch flow and clear the flag.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (window.sessionStorage.getItem('veripulse_open_news_dispatch_v1') === '1') {
+        window.sessionStorage.removeItem('veripulse_open_news_dispatch_v1');
+        handleOpenFileDispatch();
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+    // Intentionally runs on mount and when profile load finishes, so the
+    // press-pass gate reads the right profile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.is_journalist_verified]);
 
   // Submit news dispatch with duplicate detection and 10-minute consensus buffer
   const handleDispatchSubmit = (data: {
@@ -753,251 +772,36 @@ export function NewsHub() {
         </div>
       )}
 
-      {/* ── Reporter Action Bar ── */}
-      <div className="relative rounded-card border border-[var(--border-subtle)] bg-bg-surface p-3.5">
-        {/* Press Pass — top-right corner */}
-        {profile?.is_journalist_verified && (
-          <div
-            title={`Accredited Press Pass • ID: ${profile.press_credential_id || 'PIB-PRESS-2026-9812'}`}
-            className="absolute top-2.5 right-3 inline-flex items-center gap-1 text-[10px] font-medium text-brand-emerald/80 whitespace-nowrap"
-          >
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-emerald opacity-75"></span>
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand-emerald"></span>
-            </span>
-            <Award size={10} className="shrink-0" />
-            <span>{t('pressPassActive', lang)}</span>
-            {profile.press_credential_id && (
-              <span className="font-mono text-[9px] text-brand-emerald/60">
-                {profile.press_credential_id}
-              </span>
-            )}
-          </div>
-        )}
+      {/* ── Compact Sticky Filter Bar ──
+          Replaces the old Reporter Action Bar + big category grid + tag
+          strip + wide search row. Each filter is now a chip-shaped
+          dropdown; search is icon-only until expanded. The whole bar is
+          sticky so filters stay reachable while the article feed scrolls. */}
+      <StickyFilterBar
+        lang={lang}
+        profile={profile}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={(c) => {
+          setSelectedCategory(c);
+          setSelectedTag(null);
+        }}
+        selectedTag={selectedTag}
+        setSelectedTag={setSelectedTag}
+        allTags={currentCategoryMeta ? currentCategoryMeta.popularTags : allTags}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        c2paOnly={c2paOnly}
+        setC2paOnly={setC2paOnly}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        searchOpen={searchOpen}
+        setSearchOpen={setSearchOpen}
+        filteredCount={filteredArticles.length}
+        isSyncing={isSyncing}
+        getCategoryIcon={getCategoryIcon}
+        getCategoryName={getCategoryName}
+      />
 
-        {/* Main row */}
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2 pr-40 sm:pr-48">
-            <Sparkles size={14} className="shrink-0 text-brand-emerald" />
-            <span className="text-xs font-bold text-content-primary">Multi-Reporter Consensus</span>
-            <span className="text-[10px] text-content-muted font-medium">{filteredArticles.length} verified reports</span>
-          </div>
-          <div className="flex items-end gap-3 sm:items-center sm:justify-between">
-            <p className="text-[11px] text-content-secondary leading-relaxed min-w-0 flex-1">
-              Every report is cross-checked by multiple reporters. Cast your vote — Real, Hoax or Needs Context — to shape each story&apos;s credibility score. Top verifiers earn rewards and climb the Sentinel leaderboard.
-            </p>
-            <Button
-              variant="solid"
-              onClick={handleOpenFileDispatch}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold whitespace-nowrap shrink-0"
-            >
-              <PenSquare size={14} className="shrink-0" /> {t('fileDispatch', lang)}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Category Selectors ── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-content-primary">{t('categories', lang)}</h2>
-          <span className="text-[11px] text-content-muted">
-            {filteredArticles.length} {t('curatedReports', lang)}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <button
-            onClick={() => {
-              setSelectedCategory('all');
-              setSelectedTag(null);
-            }}
-            aria-pressed={selectedCategory === 'all'}
-            className={cn(
-              'relative flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all duration-200',
-              selectedCategory === 'all'
-                ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary glow-emerald ring-1 ring-brand-emerald/50'
-                : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-[var(--border-strong)] hover:text-content-primary',
-            )}
-          >
-            {selectedCategory === 'all' && (
-              <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-emerald text-[#04110b]">
-                <Check size={10} strokeWidth={3} />
-              </span>
-            )}
-            <div
-              className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-button',
-                selectedCategory === 'all'
-                  ? 'bg-brand-emerald text-[#04110b]'
-                  : 'bg-bg-elevated text-brand-emerald',
-              )}
-            >
-              <Newspaper size={16} />
-            </div>
-            <div className="text-xs font-bold">All News</div>
-            <div className="text-[10px] text-content-muted line-clamp-1">All verified streams</div>
-          </button>
-
-          {NEWS_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setSelectedCategory(cat.id);
-                  setSelectedTag(null);
-                }}
-                aria-pressed={isSelected}
-                className={cn(
-                  'relative flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all duration-200',
-                  isSelected
-                    ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary glow-emerald ring-1 ring-brand-emerald/50'
-                    : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-[var(--border-strong)] hover:text-content-primary',
-                )}
-              >
-                {isSelected && (
-                  <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-emerald text-[#04110b]">
-                    <Check size={10} strokeWidth={3} />
-                  </span>
-                )}
-                <div
-                  className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-button',
-                    isSelected
-                      ? 'bg-brand-emerald text-[#04110b]'
-                      : 'bg-bg-elevated text-content-muted',
-                  )}
-                >
-                  {getCategoryIcon(cat.id)}
-                </div>
-                <div className="text-xs font-bold truncate w-full">{getCategoryName(cat.id, cat.name)}</div>
-                <div className="text-[10px] text-content-muted line-clamp-1">{cat.description}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        {currentCategoryMeta && (
-          <div className="flex items-center gap-2 rounded-card border border-[var(--border-subtle)] bg-bg-surface/70 px-3.5 py-2 text-xs">
-            <span className="text-brand-emerald">{getCategoryIcon(currentCategoryMeta.id)}</span>
-            <span className="font-semibold text-content-primary">{getCategoryName(currentCategoryMeta.id, currentCategoryMeta.name)}:</span>
-            <span className="text-content-secondary">{currentCategoryMeta.description}</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Topic Tag Pill Strip ── */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-content-muted">
-          <span className="flex items-center gap-1 font-semibold text-content-secondary">
-            <Tag size={12} /> {lang === 'bn' ? 'যাচাইকৃত ট্যাগ:' : lang === 'hi' ? 'सत्यापित टैग:' : 'Filter by Verified Tags:'}
-          </span>
-          {selectedTag && (
-            <button
-              onClick={() => setSelectedTag(null)}
-              className="text-[11px] text-brand-emerald hover:underline"
-            >
-              {lang === 'bn' ? 'ট্যাগ ফিল্টার মুছুন' : lang === 'hi' ? 'टैग फ़िल्टर हटाएं' : 'Clear tag filter'}
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
-          <button
-            onClick={() => setSelectedTag(null)}
-            className={cn(
-              'shrink-0 inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
-              selectedTag === null
-                ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40 ring-offset-1 ring-offset-bg-primary shadow-sm scale-[1.03]'
-                : 'border border-[var(--border-subtle)] bg-bg-elevated text-content-secondary hover:text-content-primary',
-            )}
-          >
-            {selectedTag === null && <Check size={11} strokeWidth={3} />}
-            #AllTags
-          </button>
-          {(currentCategoryMeta ? currentCategoryMeta.popularTags : allTags).map((tag) => {
-            const isTagActive = selectedTag === tag;
-            return (
-              <button
-                key={tag}
-                onClick={() => setSelectedTag(isTagActive ? null : tag)}
-                aria-pressed={isTagActive}
-                className={cn(
-                  'shrink-0 inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
-                  isTagActive
-                    ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40 ring-offset-1 ring-offset-bg-primary shadow-sm scale-[1.03]'
-                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-brand-emerald/50 hover:bg-bg-elevated hover:text-content-primary',
-                )}
-              >
-                {isTagActive && <Check size={11} strokeWidth={3} />}
-                #{tag}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Search & Filter Controls ── */}
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={lang === 'bn' ? 'শিরোনাম, ট্যাগ বা সংবাদ সূত্র খুঁজুন...' : lang === 'hi' ? 'शीर्षक, टैग या समाचार स्रोत खोजें...' : 'Search news by headline, tags, reporter, or source...'}
-            className="w-full rounded-pill border border-[var(--border-subtle)] bg-bg-surface py-2 pl-8 pr-3 text-xs text-content-primary placeholder:text-content-muted focus:border-brand-emerald focus:outline-none transition-colors"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isSyncing && (
-            <div className="hidden sm:flex items-center gap-1 text-[11px] text-content-muted font-mono animate-pulse mr-1">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-emerald animate-ping" />
-              <span>Syncing...</span>
-            </div>
-          )}
-
-          <button
-            onClick={() => setC2paOnly(!c2paOnly)}
-            className={cn(
-              'flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-xs font-semibold transition-colors',
-              c2paOnly
-                ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-brand-emerald'
-                : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-            )}
-          >
-            <ShieldCheck size={13} />
-            <span>C2PA</span>
-          </button>
-
-          <CustomSelect<'latest' | 'credibility' | 'fastest'>
-            value={sortBy}
-            onChange={setSortBy}
-            variant="pill"
-            size="sm"
-            align="right"
-            options={[
-              {
-                value: 'latest',
-                label: lang === 'bn' ? 'সর্বশেষ' : lang === 'hi' ? 'नवीनतम' : 'Latest First',
-                icon: <Clock size={12} className="text-brand-sky" />,
-              },
-              {
-                value: 'credibility',
-                label: lang === 'bn' ? 'সর্বোচ্চ নির্ভরযোগ্যতা' : lang === 'hi' ? 'उच्चतम विश्वसनीयता' : 'Highest Credibility',
-                icon: <ShieldCheck size={12} className="text-brand-emerald" />,
-              },
-              {
-                value: 'fastest',
-                label: lang === 'bn' ? 'দ্রুত পাঠ (১ মিনিট)' : lang === 'hi' ? 'त्वरित पठन (1 मिनट)' : 'Quick Read (1 min)',
-                icon: <Zap size={12} className="text-brand-amber" />,
-              },
-            ]}
-          />
-        </div>
-      </div>
 
       {/* ── Articles Feed ── */}
       <div className="space-y-4">
@@ -1278,6 +1082,403 @@ export function NewsHub() {
       </div>
 
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sticky Filter Bar — compact chip-dropdowns + icon search toggle
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface StickyFilterBarProps {
+  lang: Lang;
+  profile: ReturnType<typeof useSession>['profile'];
+  selectedCategory: NewsCategory | 'all';
+  setSelectedCategory: (c: NewsCategory | 'all') => void;
+  selectedTag: string | null;
+  setSelectedTag: (t: string | null) => void;
+  allTags: string[];
+  sortBy: 'latest' | 'credibility' | 'fastest';
+  setSortBy: (s: 'latest' | 'credibility' | 'fastest') => void;
+  c2paOnly: boolean;
+  setC2paOnly: (v: boolean) => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  searchOpen: boolean;
+  setSearchOpen: (v: boolean) => void;
+  filteredCount: number;
+  isSyncing: boolean;
+  getCategoryIcon: (c: NewsCategory) => React.ReactNode;
+  getCategoryName: (id: string, def: string) => string;
+}
+
+function StickyFilterBar({
+  lang,
+  profile,
+  selectedCategory,
+  setSelectedCategory,
+  selectedTag,
+  setSelectedTag,
+  allTags,
+  sortBy,
+  setSortBy,
+  c2paOnly,
+  setC2paOnly,
+  searchQuery,
+  setSearchQuery,
+  searchOpen,
+  setSearchOpen,
+  filteredCount,
+  isSyncing,
+  getCategoryIcon,
+  getCategoryName,
+}: StickyFilterBarProps) {
+  const [openMenu, setOpenMenu] = useState<null | 'category' | 'tag' | 'sort'>(null);
+
+  // Selected tag → pinned to front of the list, visibly highlighted.
+  const orderedTags = useMemo(() => {
+    if (!selectedTag) return allTags;
+    const rest = allTags.filter((t) => t !== selectedTag);
+    return [selectedTag, ...rest];
+  }, [allTags, selectedTag]);
+
+  const hasActiveFilter =
+    selectedCategory !== 'all' ||
+    selectedTag !== null ||
+    c2paOnly ||
+    searchQuery.trim().length > 0;
+
+  const categoryLabel =
+    selectedCategory === 'all'
+      ? lang === 'bn'
+        ? 'সব বিভাগ'
+        : lang === 'hi'
+          ? 'सभी'
+          : 'All categories'
+      : getCategoryName(selectedCategory, selectedCategory);
+
+  const sortLabel: Record<string, string> = {
+    latest: lang === 'bn' ? 'সর্বশেষ' : lang === 'hi' ? 'नवीनतम' : 'Latest',
+    credibility: lang === 'bn' ? 'নির্ভরযোগ্যতা' : lang === 'hi' ? 'विश्वसनीयता' : 'Credibility',
+    fastest: lang === 'bn' ? 'দ্রুত পাঠ' : lang === 'hi' ? 'त्वरित' : 'Quick read',
+  };
+
+  function clearAll() {
+    setSelectedCategory('all');
+    setSelectedTag(null);
+    setC2paOnly(false);
+    setSearchQuery('');
+    setSearchOpen(false);
+  }
+
+  return (
+    <div className="sticky top-[72px] z-30 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary/95 backdrop-blur-md lg:top-0">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar">
+        <FilterChip
+          active={selectedCategory !== 'all'}
+          icon={
+            selectedCategory === 'all'
+              ? <Newspaper size={13} />
+              : getCategoryIcon(selectedCategory as NewsCategory)
+          }
+          label={categoryLabel}
+          onClick={() => setOpenMenu(openMenu === 'category' ? null : 'category')}
+          open={openMenu === 'category'}
+        />
+        <FilterChip
+          active={selectedTag !== null}
+          icon={<Tag size={12} />}
+          label={selectedTag ? `#${selectedTag}` : lang === 'bn' ? 'ট্যাগ' : lang === 'hi' ? 'टैग' : 'Tags'}
+          onClick={() => setOpenMenu(openMenu === 'tag' ? null : 'tag')}
+          open={openMenu === 'tag'}
+        />
+        <FilterChip
+          icon={<Clock size={12} />}
+          label={sortLabel[sortBy] ?? 'Sort'}
+          onClick={() => setOpenMenu(openMenu === 'sort' ? null : 'sort')}
+          open={openMenu === 'sort'}
+        />
+        <button
+          onClick={() => setC2paOnly(!c2paOnly)}
+          aria-pressed={c2paOnly}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+            c2paOnly
+              ? 'border-brand-emerald bg-brand-emerald text-[#04110b]'
+              : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+          )}
+        >
+          <ShieldCheck size={12} /> C2PA
+        </button>
+        <button
+          onClick={() => setSearchOpen(!searchOpen)}
+          aria-label="Toggle search"
+          aria-pressed={searchOpen || searchQuery.length > 0}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+            searchOpen || searchQuery.length > 0
+              ? 'border-brand-sky bg-brand-sky/15 text-brand-sky'
+              : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+          )}
+        >
+          <Search size={12} /> {searchQuery.length > 0 ? 'On' : ''}
+        </button>
+
+        {hasActiveFilter && (
+          <button
+            onClick={clearAll}
+            className="ml-auto shrink-0 whitespace-nowrap rounded-pill px-2 py-1 text-[11px] font-semibold text-brand-rose hover:underline"
+          >
+            Clear
+          </button>
+        )}
+
+        <span className="ml-auto hidden shrink-0 items-center gap-2 whitespace-nowrap text-[10px] text-content-muted sm:inline-flex">
+          {isSyncing && (
+            <span className="inline-flex items-center gap-1 font-mono text-brand-emerald animate-pulse">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-emerald animate-ping" />
+              syncing
+            </span>
+          )}
+          <span>{filteredCount} reports</span>
+          {profile?.is_journalist_verified && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-emerald/15 px-1.5 py-0.5 font-semibold text-brand-emerald">
+              <Award size={10} /> Press
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Expanded search */}
+      {searchOpen && (
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+            <input
+              autoFocus
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                lang === 'bn'
+                  ? 'শিরোনাম, ট্যাগ বা উৎস খুঁজুন…'
+                  : lang === 'hi'
+                    ? 'शीर्षक, टैग या स्रोत खोजें…'
+                    : 'Search headlines, tags, sources…'
+              }
+              className="w-full rounded-pill border border-[var(--border-subtle)] bg-bg-surface py-1.5 pl-8 pr-8 text-xs text-content-primary placeholder:text-content-muted focus:border-brand-emerald focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded category dropdown */}
+      {openMenu === 'category' && (
+        <DropdownPanel onClose={() => setOpenMenu(null)}>
+          <DropdownRow
+            selected={selectedCategory === 'all'}
+            onClick={() => {
+              setSelectedCategory('all');
+              setOpenMenu(null);
+            }}
+            icon={<Newspaper size={13} className="text-brand-emerald" />}
+            label={lang === 'bn' ? 'সব বিভাগ' : lang === 'hi' ? 'सभी श्रेणियां' : 'All categories'}
+          />
+          {NEWS_CATEGORIES.map((cat) => (
+            <DropdownRow
+              key={cat.id}
+              selected={selectedCategory === cat.id}
+              onClick={() => {
+                setSelectedCategory(cat.id);
+                setOpenMenu(null);
+              }}
+              icon={<span className="text-brand-emerald">{getCategoryIcon(cat.id)}</span>}
+              label={getCategoryName(cat.id, cat.name)}
+              sub={cat.description}
+            />
+          ))}
+        </DropdownPanel>
+      )}
+
+      {/* Expanded tag dropdown — selected tag pinned to the top. */}
+      {openMenu === 'tag' && (
+        <DropdownPanel onClose={() => setOpenMenu(null)}>
+          <div className="flex flex-wrap gap-1 p-2">
+            <button
+              onClick={() => {
+                setSelectedTag(null);
+                setOpenMenu(null);
+              }}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition',
+                selectedTag === null
+                  ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40'
+                  : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+              )}
+            >
+              {selectedTag === null && <Check size={11} strokeWidth={3} />}
+              #AllTags
+            </button>
+            {orderedTags.map((tag) => {
+              const isActive = selectedTag === tag;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    setSelectedTag(isActive ? null : tag);
+                    setOpenMenu(null);
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition',
+                    isActive
+                      ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40 shadow-sm scale-[1.03]'
+                      : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-brand-emerald/50 hover:text-content-primary',
+                  )}
+                >
+                  {isActive && <Check size={11} strokeWidth={3} />}
+                  #{tag}
+                </button>
+              );
+            })}
+          </div>
+        </DropdownPanel>
+      )}
+
+      {/* Expanded sort dropdown */}
+      {openMenu === 'sort' && (
+        <DropdownPanel onClose={() => setOpenMenu(null)}>
+          {(['latest', 'credibility', 'fastest'] as const).map((opt) => (
+            <DropdownRow
+              key={opt}
+              selected={sortBy === opt}
+              onClick={() => {
+                setSortBy(opt);
+                setOpenMenu(null);
+              }}
+              icon={
+                opt === 'latest' ? (
+                  <Clock size={12} className="text-brand-sky" />
+                ) : opt === 'credibility' ? (
+                  <ShieldCheck size={12} className="text-brand-emerald" />
+                ) : (
+                  <Zap size={12} className="text-brand-amber" />
+                )
+              }
+              label={sortLabel[opt]}
+            />
+          ))}
+        </DropdownPanel>
+      )}
+    </div>
+  );
+}
+
+function FilterChip({
+  icon,
+  label,
+  onClick,
+  open,
+  active,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  open?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-expanded={open}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-pill border px-2.5 py-1 text-[11px] font-semibold transition',
+        active
+          ? 'border-brand-emerald bg-brand-emerald text-[#04110b] shadow-sm'
+          : open
+            ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary'
+            : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+      )}
+    >
+      {icon}
+      <span className="max-w-[9rem] truncate">{label}</span>
+      <ChevronDown size={11} className={cn('transition-transform', open && 'rotate-180')} />
+    </button>
+  );
+}
+
+function DropdownPanel({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function esc(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('mousedown', h);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', h);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [onClose]);
+  return (
+    <div
+      ref={ref}
+      className="animate-fade-in max-h-80 overflow-y-auto border-t border-[var(--border-subtle)] bg-bg-elevated"
+    >
+      {children}
+    </div>
+  );
+}
+
+function DropdownRow({
+  icon,
+  label,
+  sub,
+  selected,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  sub?: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-selected={selected}
+      className={cn(
+        'flex w-full items-center gap-2 px-4 py-2 text-left text-[12px] transition',
+        selected
+          ? 'bg-[var(--brand-emerald-glow)] text-content-primary'
+          : 'text-content-secondary hover:bg-bg-primary hover:text-content-primary',
+      )}
+    >
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-button bg-bg-primary">
+        {icon}
+      </span>
+      <span className="flex-1 truncate">
+        <span className="font-semibold">{label}</span>
+        {sub && <span className="ml-2 text-[10px] text-content-muted">{sub}</span>}
+      </span>
+      {selected && <Check size={12} className="text-brand-emerald" />}
+    </button>
   );
 }
 

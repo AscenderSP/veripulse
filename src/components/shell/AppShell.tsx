@@ -31,6 +31,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
 import { AuthSheet } from './AuthSheet';
 import { ReviewPrompt } from './ReviewPrompt';
+import { PostFab, DISPATCH_SIGNAL_KEY } from './PostFab';
 import { AreaSwitcher, GLOBAL_AREA, type Area } from './AreaSwitcher';
 import { Feed } from '@/components/feed/Feed';
 import { Composer } from '@/components/feed/Composer';
@@ -107,6 +108,7 @@ export function AppShell() {
   const [area, setArea] = useState<Area>(GLOBAL_AREA);
   const [sectionKey, setSectionKey] = useState(0);
   const [pulseOpen, setPulseOpen] = useState(false);
+  const [fabSignal, setFabSignal] = useState(false);
   const vaultCount = useQuarantineCount();
   const { profile } = useSession();
   const { lang } = useLang();
@@ -257,10 +259,27 @@ export function AppShell() {
       <MobileNav
         section={section}
         setSection={switchSection}
-        onPost={() => switchSection('compose')}
+        onPost={() => setFabSignal(true)}
         vaultCount={vaultCount}
         balance={profile?.wallet_balance_inr ?? null}
         lang={lang}
+      />
+
+      <PostFab
+        openSignal={fabSignal}
+        onConsumeSignal={() => setFabSignal(false)}
+        onAction={(action) => {
+          if (action === 'post_report') {
+            switchSection('compose');
+          } else if (action === 'dispatch_news') {
+            try {
+              window.sessionStorage.setItem(DISPATCH_SIGNAL_KEY, '1');
+            } catch {
+              /* ignore storage errors */
+            }
+            switchSection('news');
+          }
+        }}
       />
 
       <VerifyDrawer open={verifyOpen} onClose={() => setVerifyOpen(false)} />
