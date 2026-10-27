@@ -151,8 +151,14 @@ export function AppShell() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1400px]">
-      {/* ── Left Sidebar (desktop) ── */}
-      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col px-4 py-5 lg:flex glass-heavy border-r-0" style={{ borderRight: '1px solid var(--glass-border)' }}>
+      {/* ── Left Sidebar (desktop) ──
+          Floats as a card: offset from viewport edges with margins,
+          rounded corners and shadow, instead of sitting flush against
+          the window. Sticky inside the flex row so it stays reachable. */}
+      <aside
+        className="sticky top-3 hidden h-[calc(100vh-1.5rem)] w-[260px] shrink-0 flex-col overflow-y-auto rounded-2xl px-4 py-5 lg:flex glass-heavy shadow-xl"
+        style={{ margin: '0.75rem 0 0.75rem 0.75rem', border: '1px solid var(--glass-border)' }}
+      >
         <Brand lang={lang} />
         <AreaSwitcher area={area} onChange={setArea} />
         <div className="mt-4 flex items-center justify-between gap-2">
@@ -250,8 +256,13 @@ export function AppShell() {
         </div>
       </main>
 
-      {/* ── Right Column (desktop) ── */}
-      <aside className="sticky top-0 hidden h-screen w-[340px] shrink-0 overflow-y-auto px-4 py-5 xl:block glass-heavy border-l-0" style={{ borderLeft: '1px solid var(--glass-border)' }}>
+      {/* ── Right Column (desktop) ──
+          Also floats as a card with margins + rounded + shadow,
+          matching the left sidebar. */}
+      <aside
+        className="sticky top-3 hidden h-[calc(100vh-1.5rem)] w-[340px] shrink-0 overflow-y-auto rounded-2xl px-4 py-5 xl:block glass-heavy shadow-xl"
+        style={{ margin: '0.75rem 0.75rem 0.75rem 0', border: '1px solid var(--glass-border)' }}
+      >
         <RightRail onNavigate={switchSection} />
       </aside>
 

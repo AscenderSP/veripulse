@@ -73,16 +73,28 @@ export function PostFab({ onAction, openSignal, onConsumeSignal }: PostFabProps)
   return (
     <div
       ref={containerRef}
-      className="fixed right-4 z-50 flex flex-col items-end gap-2"
+      className="post-fab-anchor fixed right-4 z-50 flex flex-col items-end gap-2"
       style={{
         bottom: 'calc(env(safe-area-inset-bottom) + 96px)',
       }}
     >
-      {/* Desktop override: sit flush against the bottom-right corner. */}
+      {/* Desktop placement.
+          On lg (≥1024px, right rail not yet shown) we sit in the
+          bottom-right of the viewport. On xl (≥1280px) the right rail
+          renders at w-340 inside a max-w-[1400px] centred layout, so
+          we anchor at the GAP between the main column and the right
+          rail — regardless of how wide the viewport is. The formula:
+            right = max((100vw - 1400px) / 2, 0px) + 372px
+          (340 rail + 12 margin + 20 breathing room). */}
       <style jsx>{`
         @media (min-width: 1024px) {
-          div {
+          .post-fab-anchor {
             bottom: 1.5rem !important;
+          }
+        }
+        @media (min-width: 1280px) {
+          .post-fab-anchor {
+            right: calc(max((100vw - 1400px) / 2, 0px) + 372px) !important;
           }
         }
       `}</style>
