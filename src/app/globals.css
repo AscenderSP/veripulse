@@ -98,6 +98,7 @@ body.light-theme {
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -110,6 +111,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+[data-theme='light'] body,
+html.light body,
+body.light-theme {
+  color-scheme: light;
 }
 
 /* ── iOS-like Selection ── */
@@ -666,10 +674,24 @@ select:focus {
    ANIMATED FOCUS RING
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Focus ring: box-shadow naturally follows the element's own border-radius,
+   so a rounded-pill input gets a pill-shaped ring, a rounded-button input
+   gets a soft-rect ring, etc. Never set `border-radius: inherit` here — that
+   would overwrite the focused element's own radius with the parent's (usually
+   0), producing a square ring around a visually rounded element. */
 *:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--brand-emerald);
-  border-radius: inherit;
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--brand-emerald),
+    0 0 0 8px var(--brand-emerald-glow);
+}
+
+/* Dropdown menu items use a subtler inset ring so the row stays flush with
+   the menu border. */
+[role='listbox'] [role='option']:focus-visible,
+[role='menu'] [role='menuitem']:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--brand-emerald);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
