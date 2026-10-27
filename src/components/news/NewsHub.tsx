@@ -52,7 +52,64 @@ import {
 } from '@/lib/journalism';
 import { t } from '@/lib/translations';
 import { getReferenceImage, isNewsExpired, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
+import { useRelatedImage } from '@/hooks/useRelatedImage';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
+
+/** Image for an article card. Verified photo wins; otherwise a subject-related
+ *  image is fetched from Wikipedia with the title as the query, and the curated
+ *  category reference image is the last fallback. The "Reference Image"
+ *  disclaimer shows for anything that is not the article's own verified photo. */
+function ArticleImage({
+  article,
+  titleText,
+  size = 'card',
+}: {
+  article: NewsArticle;
+  titleText: string;
+  size?: 'card' | 'detail';
+}) {
+  const hasVerifiedImage = Boolean(article.mediaUrl);
+  const relatedImage = useRelatedImage(titleText, !hasVerifiedImage);
+  const displayImage =
+    article.mediaUrl ?? relatedImage ?? getReferenceImage(article.category);
+
+  const wrapperCls =
+    size === 'card'
+      ? 'relative aspect-square w-full sm:w-48 sm:h-48 overflow-hidden rounded-card bg-bg-elevated border border-[var(--border-subtle)]'
+      : 'relative aspect-square w-full sm:w-48 sm:h-48 shrink-0 overflow-hidden rounded-card border border-[var(--border-subtle)] bg-bg-elevated';
+
+  const imgCls =
+    size === 'card'
+      ? 'h-full w-full object-cover transition-transform duration-300 hover:scale-105'
+      : 'h-full w-full object-cover';
+
+  return (
+    <div className={wrapperCls}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={displayImage} alt={titleText} className={imgCls} loading="lazy" />
+      {article.c2paVerified ? (
+        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2 py-0.5 text-[9px] font-bold text-brand-emerald backdrop-blur-sm">
+          <ShieldCheck size={11} /> {size === 'detail' ? 'C2PA Authenticated' : 'C2PA Signed'}
+        </div>
+      ) : !hasVerifiedImage ? (
+        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-black/70 px-2 py-0.5 text-[9px] font-medium text-white/90 backdrop-blur-sm">
+          <Sparkles size={10} className="text-brand-amber" />
+          Reference Image
+        </div>
+      ) : null}
+      {size === 'card' && (
+        <div className="absolute bottom-2 left-2 rounded-pill bg-bg-surface/80 px-2 py-0.5 text-[10px] font-mono text-content-primary backdrop-blur-sm">
+          {article.readingTimeMinutes} min read
+        </div>
+      )}
+      {!hasVerifiedImage && size === 'detail' && (
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-[9px] leading-tight text-white/80 text-right">
+          Illustrative — not from scene
+        </div>
+      )}
+    </div>
+  );
+}
 
 function mapStoryToArticle(s: any): NewsArticle {
   const catRaw = (s.category || 'Politics').toLowerCase();
@@ -92,7 +149,7 @@ function mapStoryToArticle(s: any): NewsArticle {
     },
     source: s.source === 'rss' ? 'Verified Wire Agency' : 'Citizen Sentinel',
     publishedAt: s.created_at || new Date().toISOString(),
-    mediaUrl: s.media_url || getReferenceImage(s.category),
+    mediaUrl: s.media_url || undefined,
     c2paVerified: Boolean(s.c2pa_verified),
     credibilityScore: Number(s.credibility_score) || 82,
     aiProbabilityScore: Number(s.ai_probability_score) || 8,
@@ -961,33 +1018,8 @@ export function NewsHub() {
               <div className="flex flex-col sm:flex-row p-4 gap-4">
                 {/* ── Left Column: Squarish Photo & Reporter Badge ── */}
                 <div className="flex flex-col gap-2 shrink-0 sm:w-48">
-                  {/* Squarish 1:1 Photo (Submitted Media or Curated Reference Image) */}
-                  {(() => {
-                    const displayImage = article.mediaUrl || getReferenceImage(article.category);
-                    return (
-                      <div className="relative aspect-square w-full sm:w-48 sm:h-48 overflow-hidden rounded-card bg-bg-elevated border border-[var(--border-subtle)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={displayImage}
-                          alt={titleText}
-                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                          loading="lazy"
-                        />
-                        {article.c2paVerified ? (
-                          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2 py-0.5 text-[9px] font-bold text-brand-emerald backdrop-blur-sm">
-                            <ShieldCheck size={11} /> C2PA Signed
-                          </div>
-                        ) : !article.mediaUrl ? (
-                          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-black/60 px-2 py-0.5 text-[9px] font-medium text-white/90 backdrop-blur-sm">
-                            <Sparkles size={10} className="text-brand-amber" /> Ref Image
-                          </div>
-                        ) : null}
-                        <div className="absolute bottom-2 left-2 rounded-pill bg-bg-surface/80 px-2 py-0.5 text-[10px] font-mono text-content-primary backdrop-blur-sm">
-                          {article.readingTimeMinutes} min read
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {/* Squarish 1:1 Photo — verified media, else subject-related image, else category stock */}
+                  <ArticleImage article={article} titleText={titleText} size="card" />
 
                   {/* ── Reporter's Badge Strip Directly Below the Photo ── */}
                   {article.leadReporter && (
@@ -1549,24 +1581,7 @@ function NewsDrillDownPage({
         <div className="space-y-5">
           {/* Main Visual & Title Header */}
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            {(() => {
-              const displayImage = article.mediaUrl || getReferenceImage(article.category);
-              return (
-                <div className="relative aspect-square w-full sm:w-48 sm:h-48 shrink-0 overflow-hidden rounded-card border border-[var(--border-subtle)] bg-bg-elevated">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={displayImage} alt={titleText} className="h-full w-full object-cover" />
-                  {article.c2paVerified ? (
-                    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-[#04110b]/80 px-2.5 py-1 text-[10px] font-bold text-brand-emerald backdrop-blur-sm">
-                      <ShieldCheck size={12} /> C2PA Authenticated
-                    </div>
-                  ) : !article.mediaUrl ? (
-                    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-pill bg-black/70 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
-                      <Sparkles size={11} className="text-brand-amber" /> Reference Image
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })()}
+            <ArticleImage article={article} titleText={titleText} size="detail" />
 
             <div className="flex-1 space-y-2">
               <div className="flex items-center justify-between text-xs text-content-muted">

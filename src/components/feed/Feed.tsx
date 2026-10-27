@@ -81,6 +81,17 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   const [loading, setLoading] = useState(() => !feedScopeCache.has(cacheKey) && stories.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'feed' | 'map'>('feed');
+  const [highlightedStoryId, setHighlightedStoryId] = useState<string | null>(null);
+
+  const handleSelectIncidentStory = useCallback((story: Story) => {
+    setViewMode('feed');
+    setHighlightedStoryId(story.id);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`story-${story.id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    window.setTimeout(() => setHighlightedStoryId(null), 2200);
+  }, []);
 
   // demo-mode vote memory so switching votes reverses like the SQL does
   const demoVotes = useRef<Record<string, { vote: VoteAction; weight: number }>>({});
@@ -253,7 +264,7 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
       )}
 
       {viewMode === 'map' && !vault ? (
-        <IncidentMap stories={stories} />
+        <IncidentMap stories={stories} onSelectStory={handleSelectIncidentStory} />
       ) : (
         <>
           {!vault && <Composer onSubmitted={load} />}
@@ -273,7 +284,13 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
             </div>
           ) : (
             stories.map((s, i) => (
-              <div key={s.id} className="space-y-4">
+              <div
+                key={s.id}
+                id={`story-${s.id}`}
+                className={`space-y-4 scroll-mt-24 rounded-card transition-shadow duration-500 ${
+                  highlightedStoryId === s.id ? 'ring-2 ring-brand-emerald/70 shadow-glow-emerald' : ''
+                }`}
+              >
                 <StoryCard story={s} onVote={handleVote} loadTimeline={loadTimeline} />
                 {/* AdSense fluid unit every 6th card (§4.2) */}
                 {(i + 1) % 6 === 0 && <AdSlot />}

@@ -11,6 +11,7 @@ import {
   Filter,
   Eye,
   Radio,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, Badge, Button } from '@/components/ui/primitives';
 import type { Story } from '@/lib/types';
@@ -160,10 +161,11 @@ export function IncidentMap({
 
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
           {filteredStories.map((s) => (
-            <div
+            <button
               key={s.id}
+              type="button"
               onClick={() => onSelectStory?.(s)}
-              className="rounded-button border border-[var(--border-subtle)] bg-bg-surface p-2.5 text-xs hover:border-[var(--border-strong)] cursor-pointer space-y-1"
+              className="group block w-full text-left rounded-button border border-[var(--border-subtle)] bg-bg-surface p-2.5 text-xs transition-all hover:border-brand-emerald/60 hover:bg-bg-elevated active:scale-[0.99] cursor-pointer space-y-1"
             >
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-content-muted">
@@ -181,9 +183,17 @@ export function IncidentMap({
                   {Math.round(s.credibility_score)}% Credibility
                 </span>
               </div>
-              <div className="font-bold text-content-primary line-clamp-1">{s.titles[lang]}</div>
-              <p className="text-[11px] text-content-secondary line-clamp-1">{s.summaries[lang]}</p>
-            </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-content-primary line-clamp-1">{s.titles[lang]}</div>
+                  <p className="text-[11px] text-content-secondary line-clamp-1">{s.summaries[lang]}</p>
+                </div>
+                <ChevronRight
+                  size={14}
+                  className="shrink-0 self-center text-content-muted transition-all group-hover:text-brand-emerald group-hover:translate-x-0.5"
+                />
+              </div>
+            </button>
           ))}
         </div>
       </div>
