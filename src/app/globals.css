@@ -112,6 +112,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
   color-scheme: dark;
+  /* Lock horizontal scroll so a stray wide element can't push the fixed
+     mobile nav off-screen; vertical scroll stays as normal. */
+  overflow-x: hidden;
+  width: 100%;
+  /* Keep OS font scaling from blowing up layouts. iOS respects this on
+     orientation change via -webkit-text-size-adjust: 100%. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 [data-theme='light'] body,
@@ -160,6 +168,15 @@ body.light-theme {
 }
 .animate-slide-in-right {
   animation: slide-in-right 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Pulse ping used by the mobile Live-Pulse icon */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(1.4); }
+}
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -185,10 +185,14 @@ export function AppShell() {
       </aside>
 
       {/* ── Center Column ── */}
-      <main className="pt-mobile-top safe-bottom min-w-0 flex-1 px-4 py-4 lg:max-w-center lg:px-6 lg:pb-8">
-        {/* Mobile top bar. mt-2 gives extra breathing room under the status
-            bar / notch, on top of safe-top padding on <main>. */}
-        <div className="mb-4 mt-2 flex items-center justify-between gap-2 lg:hidden">
+      <main className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:max-w-center lg:px-6 lg:pb-8 lg:pt-4">
+        {/* Mobile top bar. Sticky so it stays visible while the section
+            content scrolls underneath; the opaque background matches
+            --bg-primary so content doesn't bleed through. */}
+        <div
+          className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 bg-bg-primary/95 px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
+        >
           <Brand compact lang={lang} />
           <div className="flex items-center gap-1.5">
             {section === 'feed' && <AreaSwitcher area={area} onChange={setArea} compact />}
@@ -475,7 +479,7 @@ function MobileNav({
 }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around glass-heavy lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 isolate flex items-center justify-around glass-heavy lg:hidden"
       style={{
         paddingBottom: 'env(safe-area-inset-bottom)',
         borderTop: '1px solid var(--glass-border)',
