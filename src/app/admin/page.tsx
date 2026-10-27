@@ -89,6 +89,11 @@ export default function AdminPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
+  // Local preview mode: a profile marked is_admin but with no live Supabase
+  // user session (e.g. the dummy admin picked via the magic email). Lets devs
+  // explore the admin UI without a real backend admin; writes are a no-op.
+  const localPreview = !demo && !user && Boolean(profile?.is_admin);
+
   // ── Admin gate ────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -106,8 +111,17 @@ export default function AdminPage() {
         return;
       }
       if (!user) {
+        // No real Supabase session — the only valid "admin" here is the
+        // locally-persisted dummy admin profile (preview mode).
         if (!cancelled) {
-          setIsAdmin(false);
+          setIsAdmin(Boolean(profile?.is_admin));
+          if (profile?.is_admin) {
+            setStats({
+              pendingJournalists: DEMO_PENDING.length,
+              totalProfiles: 0,
+              stories24h: 0,
+            });
+          }
           setChecking(false);
         }
         return;
@@ -141,7 +155,7 @@ export default function AdminPage() {
   const loadRows = useCallback(
     async (nextTab: Tab) => {
       setLoadingRows(true);
-      if (demo) {
+      if (demo || localPreview) {
         if (nextTab === 'pending') setRows(DEMO_PENDING.filter((r) => r.journalist_verification_status === 'pending'));
         else setRows([]);
         setLoadingRows(false);
@@ -163,7 +177,7 @@ export default function AdminPage() {
         setLoadingRows(false);
       }
     },
-    [demo],
+    [demo, localPreview],
   );
 
   useEffect(() => {
@@ -173,7 +187,7 @@ export default function AdminPage() {
   async function decide(id: string, decision: 'approve' | 'reject') {
     setActioningId(id);
     setNote(null);
-    if (demo) {
+    if (demo || localPreview) {
       await new Promise((r) => setTimeout(r, 400));
       setRows((prev) => prev.filter((r) => r.id !== id));
       setStats((prev) =>
@@ -181,7 +195,11 @@ export default function AdminPage() {
           ? { ...prev, pendingJournalists: Math.max(0, prev.pendingJournalists - 1) }
           : prev,
       );
-      setNote(`Marked ${decision === 'approve' ? 'approved' : 'rejected'}.`);
+      setNote(
+        localPreview
+          ? `Preview only — ${decision}d locally; no backend write.`
+          : `Marked ${decision === 'approve' ? 'approved' : 'rejected'}.`,
+      );
       setActioningId(null);
       return;
     }
@@ -209,7 +227,7 @@ export default function AdminPage() {
     setActioningId(null);
   }
 
-  const signedIn = demo ? Boolean(profile) : Boolean(user);
+  const signedIn = demo ? Boolean(profile) : Boolean(user) || localPreview;
 
   // ── Render ────────────────────────────────────────────────────────────
   if (checking) {
@@ -232,18 +250,16 @@ export default function AdminPage() {
           action={
             <div className="flex flex-col items-center gap-2">
               <Button onClick={() => setAuthOpen(true)}>Open sign-in</Button>
-              {demo && (
-                <button
-                  onClick={() => signInPreset(DEMO_ADMIN_PROFILE)}
-                  className="press-effect rounded-button border border-[var(--border-strong)] bg-bg-primary px-3 py-2 text-[11px] font-semibold text-content-primary"
-                >
-                  Sign in as demo admin
-                </button>
-              )}
+              <button
+                onClick={() => signInPreset(DEMO_ADMIN_PROFILE)}
+                className="press-effect rounded-button border border-[var(--border-strong)] bg-bg-primary px-3 py-2 text-[11px] font-semibold text-content-primary"
+              >
+                Sign in as dummy admin (local preview)
+              </button>
             </div>
           }
         />
-        {demo && <DemoAdminCredentialsCard />}
+        <DemoAdminCredentialsCard />
       </AdminFrame>
     );
   }
@@ -261,17 +277,15 @@ export default function AdminPage() {
           }
           action={
             <div className="flex items-center gap-2">
-              {demo && (
-                <button
-                  onClick={async () => {
-                    await signOut();
-                    signInPreset(DEMO_ADMIN_PROFILE);
-                  }}
-                  className="press-effect rounded-button bg-brand-emerald px-3 py-2 text-xs font-semibold text-white"
-                >
-                  Switch to admin
-                </button>
-              )}
+              <button
+                onClick={async () => {
+                  await signOut();
+                  signInPreset(DEMO_ADMIN_PROFILE);
+                }}
+                className="press-effect rounded-button bg-brand-emerald px-3 py-2 text-xs font-semibold text-white"
+              >
+                Switch to dummy admin
+              </button>
               <Link
                 href="/"
                 className="press-effect rounded-button border border-[var(--border-strong)] px-3 py-2 text-xs font-semibold text-content-primary"
@@ -281,13 +295,24 @@ export default function AdminPage() {
             </div>
           }
         />
-        {demo && <DemoAdminCredentialsCard />}
+        <DemoAdminCredentialsCard />
       </AdminFrame>
     );
   }
 
   return (
     <AdminFrame>
+      {localPreview && (
+        <div className="mb-4 rounded-xl border border-brand-amber/40 bg-brand-amber/10 p-3 text-[11px] text-content-secondary">
+          <p className="text-xs font-semibold text-content-primary">
+            Local admin preview
+          </p>
+          Signed in as the dummy admin profile — Supabase has no matching user, so stats and actions
+          are local-only (nothing is written to the live DB). For real ops, create a Supabase user
+          and set <span className="font-mono">profiles.is_admin = true</span> or add the email to{' '}
+          <span className="font-mono">ADMIN_EMAILS</span>.
+        </div>
+      )}
       <StatsRow stats={stats} />
       <div className="mt-5 rounded-xl border border-[var(--border-subtle)] bg-bg-elevated p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -535,22 +560,22 @@ function PerksCard() {
 function DemoAdminCredentialsCard() {
   return (
     <div className="mx-auto mt-4 max-w-md rounded-xl border border-brand-amber/40 bg-brand-amber/10 p-4 text-[11px] text-content-secondary">
-      <p className="text-xs font-bold text-content-primary">Demo admin credentials</p>
+      <p className="text-xs font-bold text-content-primary">Dummy admin credentials</p>
       <p className="mt-1">
-        Use these to log into the admin console while VeriPulse is in demo mode (no live Supabase):
+        Use this magic email on the Sign-in → Email magic link form. It short-circuits Supabase and
+        signs you in locally as the dummy admin.
       </p>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
         <dt className="text-content-muted">Email</dt>
         <dd className="text-content-primary">{DEMO_ADMIN_EMAIL}</dd>
-        <dt className="text-content-muted">Password</dt>
-        <dd className="text-content-primary">any (magic link, no password)</dd>
         <dt className="text-content-muted">Username</dt>
         <dd className="text-content-primary">@{DEMO_ADMIN_PROFILE.username}</dd>
       </dl>
       <p className="mt-2 text-[10px] text-content-muted">
-        This is a demo-only account. In production, grant admin via{' '}
-        <span className="font-mono">profiles.is_admin = true</span> or the{' '}
-        <span className="font-mono">ADMIN_EMAILS</span> env list.
+        For <strong>real ops</strong> against a live Supabase, create a Supabase user and set{' '}
+        <span className="font-mono">profiles.is_admin = true</span> on their row, or add that user's
+        email to the <span className="font-mono">ADMIN_EMAILS</span> env list. The dummy admin
+        above is local-preview only — it has no backend session, so stats / approvals won't persist.
       </p>
     </div>
   );

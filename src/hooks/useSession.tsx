@@ -194,13 +194,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     contacts,
 
     async signInWithEmail(email) {
+      const trimmed = email.trim().toLowerCase();
+      // Magic admin email — short-circuits Supabase in BOTH modes so devs can
+      // hit the admin console locally without seeding a real Supabase user.
+      // A profile with is_admin: true lets the client gate open; API calls
+      // against a live backend still require a real admin user, so the admin
+      // page itself falls back to a local-preview banner.
+      if (trimmed === DEMO_ADMIN_EMAIL) {
+        persistProfile({ ...DEMO_ADMIN_PROFILE });
+        return {};
+      }
       if (demo) {
-        const trimmed = email.trim().toLowerCase();
-        // Magic admin email — only path to the admin preset in demo mode.
-        if (trimmed === DEMO_ADMIN_EMAIL) {
-          persistProfile({ ...DEMO_ADMIN_PROFILE });
-          return {};
-        }
         // Normal demo sign in — never inherits admin.
         const newProf: Profile = {
           ...DEMO_PROFILE,
