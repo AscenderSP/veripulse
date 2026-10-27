@@ -812,14 +812,27 @@ export function NewsHub() {
               setSelectedCategory('all');
               setSelectedTag(null);
             }}
+            aria-pressed={selectedCategory === 'all'}
             className={cn(
-              'flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all',
+              'relative flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all duration-200',
               selectedCategory === 'all'
-                ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary shadow-sm'
+                ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary glow-emerald ring-1 ring-brand-emerald/50'
                 : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-[var(--border-strong)] hover:text-content-primary',
             )}
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-button bg-bg-elevated text-brand-emerald">
+            {selectedCategory === 'all' && (
+              <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-emerald text-[#04110b]">
+                <Check size={10} strokeWidth={3} />
+              </span>
+            )}
+            <div
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-button',
+                selectedCategory === 'all'
+                  ? 'bg-brand-emerald text-[#04110b]'
+                  : 'bg-bg-elevated text-brand-emerald',
+              )}
+            >
               <Newspaper size={16} />
             </div>
             <div className="text-xs font-bold">All News</div>
@@ -835,17 +848,25 @@ export function NewsHub() {
                   setSelectedCategory(cat.id);
                   setSelectedTag(null);
                 }}
+                aria-pressed={isSelected}
                 className={cn(
-                  'flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all',
+                  'relative flex flex-col items-start gap-1 rounded-card border p-3 text-left transition-all duration-200',
                   isSelected
-                    ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary shadow-sm'
+                    ? 'border-brand-emerald bg-[var(--brand-emerald-glow)] text-content-primary glow-emerald ring-1 ring-brand-emerald/50'
                     : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-[var(--border-strong)] hover:text-content-primary',
                 )}
               >
+                {isSelected && (
+                  <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-emerald text-[#04110b]">
+                    <Check size={10} strokeWidth={3} />
+                  </span>
+                )}
                 <div
                   className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-button bg-bg-elevated',
-                    isSelected ? 'text-brand-emerald' : 'text-content-muted',
+                    'flex h-7 w-7 items-center justify-center rounded-button',
+                    isSelected
+                      ? 'bg-brand-emerald text-[#04110b]'
+                      : 'bg-bg-elevated text-content-muted',
                   )}
                 >
                   {getCategoryIcon(cat.id)}
@@ -886,12 +907,13 @@ export function NewsHub() {
           <button
             onClick={() => setSelectedTag(null)}
             className={cn(
-              'shrink-0 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-colors',
+              'shrink-0 inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
               selectedTag === null
-                ? 'bg-brand-emerald text-[#04110b]'
+                ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40 ring-offset-1 ring-offset-bg-primary shadow-sm scale-[1.03]'
                 : 'border border-[var(--border-subtle)] bg-bg-elevated text-content-secondary hover:text-content-primary',
             )}
           >
+            {selectedTag === null && <Check size={11} strokeWidth={3} />}
             #AllTags
           </button>
           {(currentCategoryMeta ? currentCategoryMeta.popularTags : allTags).map((tag) => {
@@ -900,13 +922,15 @@ export function NewsHub() {
               <button
                 key={tag}
                 onClick={() => setSelectedTag(isTagActive ? null : tag)}
+                aria-pressed={isTagActive}
                 className={cn(
-                  'shrink-0 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                  'shrink-0 inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
                   isTagActive
-                    ? 'bg-brand-emerald text-[#04110b]'
-                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:bg-bg-elevated hover:text-content-primary',
+                    ? 'bg-brand-emerald text-[#04110b] ring-2 ring-brand-emerald/40 ring-offset-1 ring-offset-bg-primary shadow-sm scale-[1.03]'
+                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-brand-emerald/50 hover:bg-bg-elevated hover:text-content-primary',
                 )}
               >
+                {isTagActive && <Check size={11} strokeWidth={3} />}
                 #{tag}
               </button>
             );
