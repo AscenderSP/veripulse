@@ -228,9 +228,15 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
 
   return (
     <div className="space-y-4">
-      {/* View Switcher: Feed Cards vs Incident Heatmap */}
+      {/* View Switcher: Feed Cards vs Incident Heatmap. Sticky right below
+          the global top bar so the user can toggle without scrolling to
+          the top; sits at a lower z-index than the top bar so it slides
+          under it as the user scrolls. */}
       {!vault && (
-        <div className="flex items-center justify-between px-1">
+        <div
+          className="sticky z-20 -mx-4 flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] bg-bg-primary/95 px-4 py-2 backdrop-blur-md lg:top-0"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+        >
           <div className="flex items-center gap-1.5 text-xs">
             <button
               onClick={() => setViewMode('feed')}

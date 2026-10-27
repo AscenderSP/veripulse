@@ -1171,7 +1171,10 @@ function StickyFilterBar({
   }
 
   return (
-    <div className="sticky top-[72px] z-30 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary/95 backdrop-blur-md lg:top-0">
+    <div
+      className="sticky z-20 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary/95 backdrop-blur-md lg:top-0"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+    >
       <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar">
         <FilterChip
           active={selectedCategory !== 'all'}
