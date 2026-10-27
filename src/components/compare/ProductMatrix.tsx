@@ -103,37 +103,42 @@ function ProductCardImage({
 
       {/* Top-left: brand chip. Top-right: rating badge. */}
       <div className="pointer-events-none absolute inset-x-2 top-2 flex items-start justify-between">
-        <span className="rounded-pill bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-sm">
+        <span className="rounded-pill bg-black/70 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
           {product.brand ?? product.category}
         </span>
         {product.owner_rating != null && (
-          <span className="flex items-center gap-1 rounded-pill bg-brand-amber/90 px-2 py-0.5 text-[10px] font-black text-[#1a0d00] backdrop-blur-sm">
-            <Star size={11} className="fill-current" />
+          <span className="inline-flex items-center gap-1 rounded-pill bg-black/70 px-2 py-0.5 text-[11px] font-black text-white ring-1 ring-brand-amber/60 backdrop-blur-sm">
+            <Star size={11} className="fill-brand-amber text-brand-amber" />
             {product.owner_rating.toFixed(1)}
           </span>
         )}
       </div>
 
-      {/* Bottom overlay: product name, options, verified-owner count. */}
-      <div className="pointer-events-none absolute inset-x-2 bottom-2 space-y-1">
-        <h3 className="text-sm font-extrabold leading-tight text-white drop-shadow-md line-clamp-2">
+      {/* Bottom overlay: product name, options, verified-owner count.
+          Every chip gets an opaque dark backdrop so the text stays readable
+          over bright reference imagery; coloured accents stay only on the
+          icon / stroke, not the fill. */}
+      <div className="pointer-events-none absolute inset-x-2 bottom-2 space-y-1.5">
+        <h3 className="text-sm font-extrabold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] line-clamp-2">
           {product.name}
         </h3>
-        <div className="flex flex-wrap items-center gap-1 text-[9px] font-semibold">
+        <div className="flex flex-wrap items-center gap-1">
           {product.verified_owners > 0 && (
-            <span className="rounded-pill bg-brand-emerald/90 px-1.5 py-0.5 text-[9px] font-bold text-[#04110b]">
+            <span className="inline-flex items-center gap-1 rounded-pill bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white ring-1 ring-brand-emerald/50 backdrop-blur-sm">
+              <ShieldCheck size={11} className="text-brand-emerald" />
               {product.verified_owners} verified
             </span>
           )}
           {product.reliabilityGrade && (
-            <span className="rounded-pill bg-brand-sky/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="inline-flex items-center gap-1 rounded-pill bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white ring-1 ring-brand-sky/50 backdrop-blur-sm">
+              <span className="text-brand-sky">★</span>
               Grade {product.reliabilityGrade}
             </span>
           )}
           {product.options?.slice(0, 2).map((opt) => (
             <span
               key={opt}
-              className="rounded-pill bg-white/15 px-1.5 py-0.5 text-[9px] font-medium capitalize text-white/90 backdrop-blur-sm"
+              className="rounded-pill bg-black/55 px-2 py-0.5 text-[10px] font-medium capitalize text-white backdrop-blur-sm"
             >
               #{opt}
             </span>
@@ -1972,7 +1977,7 @@ function CategoryButton({
       <span>{label}</span>
       <span
         className={cn(
-          'rounded-pill px-1.5 py-0.2 font-mono text-[10px]',
+          'rounded-pill px-1.5 py-0.5 font-mono text-[10px]',
           active ? 'bg-black/20 text-[#04110b]' : 'bg-bg-elevated text-content-muted',
         )}
       >
@@ -2679,7 +2684,7 @@ function ProductDrillDownPage({
                           {formatINR(pt.price_inr).replace(/\.00$/, '')}
                         </div>
                         {pt.event && (
-                          <span className="inline-block mt-1 rounded bg-brand-emerald/15 px-1.5 py-0.2 text-[9px] font-bold text-brand-emerald">
+                          <span className="inline-block mt-1 rounded bg-brand-emerald/15 px-1.5 py-0.5 text-[9px] font-bold text-brand-emerald">
                             {pt.event}
                           </span>
                         )}
@@ -2798,12 +2803,13 @@ function ProductDrillDownPage({
                       <div className="flex items-center gap-1.5 font-semibold text-content-primary">
                         <span>@{rev.reviewerName}</span>
                         {rev.isVerifiedOwner ? (
-                          <span className="inline-flex items-center gap-0.5 rounded-pill bg-brand-emerald/15 px-1.5 py-0.2 text-[10px] text-brand-emerald font-bold">
-                            <BadgeCheck size={11} /> {rev.reviewerBadge ?? 'Verified Owner (3× Weight)'}
+                          <span className="inline-flex items-center gap-1 rounded-pill bg-brand-emerald px-2 py-0.5 text-[11px] font-bold text-[#04110b] shadow-sm">
+                            <BadgeCheck size={12} />
+                            {rev.reviewerBadge ?? 'Verified Owner · 3× Weight'}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-0.5 rounded-pill bg-bg-surface px-1.5 py-0.2 text-[10px] text-content-muted">
-                            Community Review (Unverified)
+                          <span className="inline-flex items-center gap-1 rounded-pill border border-[var(--border-subtle)] bg-bg-surface px-2 py-0.5 text-[11px] font-semibold text-content-muted">
+                            Community Review · Unverified
                           </span>
                         )}
                       </div>

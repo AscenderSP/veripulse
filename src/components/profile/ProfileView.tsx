@@ -454,7 +454,7 @@ function TabHeaderButton({
       {badge && (
         <span
           className={cn(
-            'rounded-pill px-1.5 py-0.2 font-mono text-[9px] font-bold',
+            'rounded-pill px-1.5 py-0.5 font-mono text-[9px] font-bold',
             badge === 'Verified'
               ? 'bg-[var(--brand-emerald-glow)] text-brand-emerald'
               : 'bg-bg-primary text-content-muted',
@@ -1083,7 +1083,7 @@ function ContactsAndSocialTab({
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-bold text-content-primary">{c.name}</span>
                       {c.isRegistered && (
-                        <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.2 font-mono text-[9px] font-semibold text-brand-emerald">
+                        <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-brand-emerald">
                           On VeriPulse
                         </span>
                       )}

@@ -1816,7 +1816,7 @@ function NewsDrillDownPage({
                         <div>
                           <div className="flex items-center gap-1.5">
                             <span className="font-bold text-content-primary text-xs">{dispatch.reporterName}</span>
-                            <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.2 font-mono text-[9px] font-bold text-brand-emerald">
+                            <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-brand-emerald">
                               {dispatch.status === 'lead' ? 'Lead Reporter' : 'Corroborating'}
                             </span>
                           </div>
@@ -1879,7 +1879,7 @@ function NewsDrillDownPage({
                       <span className="absolute -left-[21px] mt-1 h-2.5 w-2.5 rounded-full bg-brand-emerald ring-4 ring-bg-surface" />
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-brand-emerald">{item.time}</span>
-                        <span className="rounded-pill bg-bg-elevated px-2 py-0.2 text-[9px] text-content-muted">
+                        <span className="rounded-pill bg-bg-elevated px-2 py-0.5 text-[9px] text-content-muted">
                           Verified by {item.verifiedBy}
                         </span>
                       </div>
@@ -1954,7 +1954,7 @@ function NewsDrillDownPage({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-content-primary">{note.author}</span>
-                          <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.2 text-[9px] font-bold text-brand-emerald">
+                          <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.5 text-[9px] font-bold text-brand-emerald">
                             {note.role}
                           </span>
                         </div>

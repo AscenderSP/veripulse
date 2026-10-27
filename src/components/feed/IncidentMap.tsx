@@ -172,7 +172,7 @@ export function IncidentMap({
                   <MapPin size={11} /> {s.location_name}
                 </span>
                 <span
-                  className={`font-mono text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                  className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${
                     s.credibility_score >= 70
                       ? 'bg-brand-emerald/15 text-brand-emerald'
                       : s.rollout_stage === 'quarantined'

@@ -250,8 +250,8 @@ export function AskOwner({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 font-semibold text-content-primary">
                           <span>@{ans.ownerName}</span>
-                          <span className="inline-flex items-center gap-0.5 rounded-pill bg-brand-emerald/15 px-1.5 py-0.2 text-[10px] text-brand-emerald">
-                            <BadgeCheck size={11} /> {ans.ownerBadge}
+                          <span className="inline-flex items-center gap-1 rounded-pill bg-brand-emerald px-2 py-0.5 text-[11px] font-bold text-[#04110b] shadow-sm">
+                            <BadgeCheck size={12} /> {ans.ownerBadge}
                           </span>
                         </div>
 
