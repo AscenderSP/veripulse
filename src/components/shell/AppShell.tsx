@@ -192,8 +192,18 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* ── Center Column ── */}
-      <main className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:max-w-center lg:px-6 lg:pb-8 lg:pt-4">
+      {/* ── Center Column ──
+          Mobile: full-page scroll (window scrolls, mobile top bar sticks).
+          Desktop: floats as a card alongside the two sidebars, with its
+          own internal scroll — only the article/content area scrolls
+          while the frame (sidebars + top bar + fab) stays docked. */}
+      <main
+        className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:sticky lg:top-3 lg:my-3 lg:h-[calc(100vh-1.5rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:px-6 lg:pb-8 lg:pt-5 lg:shadow-xl lg:glass-heavy"
+        style={{
+          // Desktop-only card chrome mirrors the sidebars.
+          borderColor: 'var(--glass-border)',
+        }}
+      >
         {/* Mobile top bar. Sticky so it stays visible while the section
             content scrolls underneath; the opaque background matches
             --bg-primary so content doesn't bleed through. */}
