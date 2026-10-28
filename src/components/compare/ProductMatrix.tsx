@@ -1453,8 +1453,12 @@ export function ProductMatrix() {
         </div>
       </Card>
 
-      {/* ── Guided Drill-Down Breadcrumb & Filters ── */}
-      <Card className="p-3.5 sm:p-4">
+      {/* ── Guided Drill-Down Breadcrumb & Filters ──
+          Hidden: Category / Price Range / Focus & Use Case are already
+          available as chip-dropdowns in the floating filter bar above, so
+          the duplicate inline chrome just took up space. The Reset button
+          moved into the ProductFilterBar's Clear link. */}
+      <Card className="hidden p-3.5 sm:p-4">
         {/* Breadcrumb Display */}
         <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs text-content-muted">
           <span className="font-semibold uppercase tracking-wider text-content-secondary">Flow:</span>

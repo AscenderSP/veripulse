@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { BOUNTY_SIGNAL_KEY } from '@/components/shell/PostFab';
 import {
   Target,
   IndianRupee,
@@ -9,7 +10,6 @@ import {
   Camera,
   CheckCircle2,
   AlertCircle,
-  Plus,
   Send,
   Sparkles,
   Flame,
@@ -50,6 +50,20 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
   const [showCreatePage, setShowCreatePage] = useState(false);
   const [selectedBounty, setSelectedBounty] = useState<BountyQuest | null>(null);
   const [claimingSuccessId, setClaimingSuccessId] = useState<string | null>(null);
+
+  // Open the composer when the floating + FAB sets the signal (user tapped
+  // "Post a Bounty" from any screen). Consume + ignore if already open.
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem(BOUNTY_SIGNAL_KEY) === '1') {
+        window.sessionStorage.removeItem(BOUNTY_SIGNAL_KEY);
+        setSubView('tasks');
+        setShowCreatePage(true);
+      }
+    } catch {
+      /* storage disabled — nothing to do */
+    }
+  }, []);
 
   const filtered = bounties.filter((b) => {
     const expired = isBountyExpired(b);
@@ -185,14 +199,9 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
           </button>
         </div>
 
-        {subView === 'tasks' && (
-          <Button
-            onClick={() => setShowCreatePage(true)}
-            className="bg-brand-emerald text-[#04110b] font-bold px-3 py-1.5 text-xs flex items-center gap-1.5"
-          >
-            <Plus size={14} /> Post a Bounty Task
-          </Button>
-        )}
+        {/* "Post a Bounty Task" moved to the floating + FAB popup in the
+            app shell. The composer is still opened by setting
+            showCreatePage=true from the FAB signal effect below. */}
       </div>
 
       {/* ── SUBVIEW: LEADERBOARD & 24H PAST ARCHIVE ── */}

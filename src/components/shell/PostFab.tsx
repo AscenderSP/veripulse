@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, X, PenSquare, Radio, Newspaper } from 'lucide-react';
+import { Plus, X, PenSquare, Radio, Newspaper, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerTapHaptic } from '@/lib/nativeHardware';
 
 export const DISPATCH_SIGNAL_KEY = 'veripulse_open_news_dispatch_v1';
 
-type FabAction = 'post_report' | 'dispatch_news';
+type FabAction = 'post_report' | 'dispatch_news' | 'post_bounty';
+
+export const BOUNTY_SIGNAL_KEY = 'veripulse_open_bounty_composer_v1';
 
 interface PostFabProps {
   onAction: (action: FabAction) => void;
@@ -118,6 +120,13 @@ export function PostFab({ onAction, openSignal, onConsumeSignal }: PostFabProps)
             label="File News Dispatch"
             sub="Press-grade wire with dedup check"
             onClick={() => pick('dispatch_news')}
+          />
+          <MenuItem
+            icon={Target}
+            iconClass="text-brand-amber"
+            label="Post a Bounty"
+            sub="Open escrow for crowdsourced verification"
+            onClick={() => pick('post_bounty')}
           />
         </div>
       )}

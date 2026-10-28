@@ -1,7 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Map as MapIcon, List, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Loader2,
+  Map as MapIcon,
+  List,
+  RefreshCw,
+  Check,
+  ChevronDown,
+  ShieldCheck,
+  ShieldAlert,
+  Layers,
+} from 'lucide-react';
+import { useListboxKeys } from '@/hooks/useListboxKeys';
 import type { Story, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { StoryCard, type VoteOutcome } from './StoryCard';
 import { AdSlot } from './AdSlot';
@@ -10,7 +21,7 @@ import { DEMO_STORIES, DEMO_TIMELINE, isSupabaseConfigured } from '@/lib/demoDat
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api';
 import { nextCredibility, nextStage, voteScalar, voteWeight } from '@/lib/consensus';
-import { distanceKm } from '@/lib/utils';
+import { cn, distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
@@ -59,6 +70,7 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   const [loading, setLoading] = useState(() => !feedScopeCache.has(cacheKey) && stories.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'feed' | 'map'>('feed');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'hoaxes'>('all');
   const [highlightedStoryId, setHighlightedStoryId] = useState<string | null>(null);
 
   const handleSelectIncidentStory = useCallback((story: Story) => {
@@ -207,68 +219,69 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
     return (data as StoryTimelineNode[]) ?? [];
   }
 
+  // Apply the status chip-dropdown filter. "Verified" = any story whose
+  // consensus has resolved to the public rollout stage. "Hoaxes" =
+  // quarantined (admin takedowns, consensus hoax).
+  const statusCounts = useMemo(() => {
+    const all = stories.length;
+    const verified = stories.filter((s) => s.rollout_stage === 'public').length;
+    const hoaxes = stories.filter(
+      (s) => s.rollout_stage === 'quarantined' || s.admin_taken_down,
+    ).length;
+    return { all, verified, hoaxes };
+  }, [stories]);
+
+  const visibleStories = useMemo(() => {
+    if (vault) return stories;
+    if (statusFilter === 'verified') return stories.filter((s) => s.rollout_stage === 'public');
+    if (statusFilter === 'hoaxes') {
+      return stories.filter(
+        (s) => s.rollout_stage === 'quarantined' || s.admin_taken_down,
+      );
+    }
+    return stories;
+  }, [stories, statusFilter, vault]);
+
   return (
     <div className="space-y-4">
-      {/* View Switcher: Feed Cards vs Incident Heatmap. Sticky right below
-          the global top bar so the user can toggle without scrolling to
-          the top; sits at a lower z-index than the top bar so it slides
-          under it as the user scrolls. */}
+      {/* Chip filter bar: View (list / heatmap) + Status (All / Verified /
+          Hoaxes). Matches the floating-pill chrome used in News Hub and
+          Product Hub so every scope shares a visual pattern. */}
       {!vault && (
-        <div
-          className="sticky z-20 -mx-4 flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md lg:!top-0"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
-        >
-          <div className="flex items-center gap-1.5 text-xs">
-            <button
-              onClick={() => setViewMode('feed')}
-              className={`flex items-center gap-1.5 rounded-pill px-3 py-1 font-semibold transition-all ${
-                viewMode === 'feed'
-                  ? 'bg-brand-emerald text-[#04110b]'
-                  : 'bg-bg-elevated text-content-muted hover:text-content-primary'
-              }`}
-            >
-              <List size={13} /> {t('liveCircleFeed', lang)}
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 rounded-pill px-3 py-1 font-semibold transition-all ${
-                viewMode === 'map'
-                  ? 'bg-brand-emerald text-[#04110b]'
-                  : 'bg-bg-elevated text-content-muted hover:text-content-primary'
-              }`}
-            >
-              <MapIcon size={13} /> {t('incidentHeatmap', lang)}
-            </button>
-          </div>
-
-          {isRefreshing && (
-            <div className="flex items-center gap-1 text-[11px] text-content-muted font-mono animate-pulse">
-              <RefreshCw size={11} className="animate-spin text-brand-emerald" />
-              <span>Updating...</span>
-            </div>
-          )}
-        </div>
+        <FeedChipBar
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          counts={statusCounts}
+          isRefreshing={isRefreshing}
+          lang={lang}
+        />
       )}
 
       {viewMode === 'map' && !vault ? (
-        <IncidentMap stories={stories} onSelectStory={handleSelectIncidentStory} />
+        <IncidentMap stories={visibleStories} onSelectStory={handleSelectIncidentStory} />
       ) : (
         <>
           {loading ? (
             <SkeletonList rows={3} rowHeight={160} />
-          ) : stories.length === 0 ? (
+          ) : visibleStories.length === 0 ? (
             <EmptyState
               title={
                 vault
                   ? t('noQuarantined', lang)
-                  : scope === 'hyperlocal'
-                    ? t('nothingNearby', lang)
-                    : t('noStoriesYet', lang)
+                  : statusFilter === 'verified'
+                    ? 'No verified reports in view'
+                    : statusFilter === 'hoaxes'
+                      ? 'No flagged hoaxes in view'
+                      : scope === 'hyperlocal'
+                        ? t('nothingNearby', lang)
+                        : t('noStoriesYet', lang)
               }
-              body="Pull to refresh, or come back in a few minutes."
+              body="Pull to refresh, or widen the status filter."
             />
           ) : (
-            stories.map((s, i) => (
+            visibleStories.map((s, i) => (
               <div
                 key={s.id}
                 id={`story-${s.id}`}
@@ -285,5 +298,229 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
         </>
       )}
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Feed chip-bar — matches NewsHub / ProductHub floating-pill chrome.
+// Chips: View (feed / map), Status (All, Verified, Hoaxes).
+// ────────────────────────────────────────────────────────────────────────────
+
+type FeedView = 'feed' | 'map';
+type FeedStatus = 'all' | 'verified' | 'hoaxes';
+
+function FeedChipBar({
+  viewMode,
+  setViewMode,
+  statusFilter,
+  setStatusFilter,
+  counts,
+  isRefreshing,
+  lang,
+}: {
+  viewMode: FeedView;
+  setViewMode: (v: FeedView) => void;
+  statusFilter: FeedStatus;
+  setStatusFilter: (s: FeedStatus) => void;
+  counts: { all: number; verified: number; hoaxes: number };
+  isRefreshing: boolean;
+  lang: 'en' | 'bn' | 'hi';
+}) {
+  const [openMenu, setOpenMenu] = useState<null | 'view' | 'status'>(null);
+
+  const statusLabel =
+    statusFilter === 'verified'
+      ? `Verified · ${counts.verified}`
+      : statusFilter === 'hoaxes'
+        ? `Hoaxes · ${counts.hoaxes}`
+        : `All · ${counts.all}`;
+  const viewLabel =
+    viewMode === 'map' ? t('incidentHeatmap', lang) : t('liveCircleFeed', lang);
+
+  return (
+    <div
+      className="sticky z-20 -mx-4 bg-bg-primary pb-2 pt-1 lg:!top-0"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+    >
+      <div className="mx-3 flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
+        <FeedChip
+          icon={viewMode === 'map' ? <MapIcon size={13} /> : <List size={13} />}
+          label={viewLabel}
+          active={viewMode === 'map'}
+          open={openMenu === 'view'}
+          onClick={() => setOpenMenu(openMenu === 'view' ? null : 'view')}
+        />
+        <FeedChip
+          icon={<Layers size={13} />}
+          label={statusLabel}
+          active={statusFilter !== 'all'}
+          open={openMenu === 'status'}
+          onClick={() => setOpenMenu(openMenu === 'status' ? null : 'status')}
+        />
+        {isRefreshing && (
+          <span className="ml-auto flex shrink-0 items-center gap-1 pr-2 text-[11px] font-mono text-content-muted">
+            <RefreshCw size={11} className="animate-spin text-brand-emerald" />
+            Updating
+          </span>
+        )}
+      </div>
+
+      {openMenu === 'view' && (
+        <FeedDropdown onClose={() => setOpenMenu(null)}>
+          <FeedRow
+            icon={<List size={13} />}
+            label={t('liveCircleFeed', lang)}
+            selected={viewMode === 'feed'}
+            onClick={() => {
+              setViewMode('feed');
+              setOpenMenu(null);
+            }}
+          />
+          <FeedRow
+            icon={<MapIcon size={13} />}
+            label={t('incidentHeatmap', lang)}
+            selected={viewMode === 'map'}
+            onClick={() => {
+              setViewMode('map');
+              setOpenMenu(null);
+            }}
+          />
+        </FeedDropdown>
+      )}
+
+      {openMenu === 'status' && (
+        <FeedDropdown onClose={() => setOpenMenu(null)}>
+          <FeedRow
+            icon={<Layers size={13} />}
+            label={`All · ${counts.all}`}
+            selected={statusFilter === 'all'}
+            onClick={() => {
+              setStatusFilter('all');
+              setOpenMenu(null);
+            }}
+          />
+          <FeedRow
+            icon={<ShieldCheck size={13} />}
+            label={`Verified · ${counts.verified}`}
+            selected={statusFilter === 'verified'}
+            onClick={() => {
+              setStatusFilter('verified');
+              setOpenMenu(null);
+            }}
+          />
+          <FeedRow
+            icon={<ShieldAlert size={13} />}
+            label={`Hoaxes · ${counts.hoaxes}`}
+            selected={statusFilter === 'hoaxes'}
+            onClick={() => {
+              setStatusFilter('hoaxes');
+              setOpenMenu(null);
+            }}
+          />
+        </FeedDropdown>
+      )}
+    </div>
+  );
+}
+
+function FeedChip({
+  icon,
+  label,
+  active,
+  open,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  open: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-expanded={open}
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all',
+        open
+          ? 'border-brand-emerald/60 bg-brand-emerald/15 text-brand-emerald'
+          : active
+            ? 'border-brand-emerald/40 bg-brand-emerald/10 text-brand-emerald'
+            : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+      <ChevronDown
+        size={12}
+        className={cn('shrink-0 transition-transform', open && 'rotate-180')}
+      />
+    </button>
+  );
+}
+
+function FeedDropdown({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { onKeyDown } = useListboxKeys({ open: true, containerRef: ref, onClose });
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose]);
+  return (
+    <div className="px-4 pb-3">
+      <div
+        ref={ref}
+        role="listbox"
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+        className="animate-fade-in max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border-strong)] bg-bg-elevated p-1.5 shadow-2xl backdrop-blur-xl"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function FeedRow({
+  icon,
+  label,
+  selected,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      role="option"
+      aria-selected={selected}
+      tabIndex={0}
+      data-listbox-option
+      data-active={selected ? 'true' : undefined}
+      className={cn(
+        'flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors',
+        selected
+          ? 'bg-brand-emerald/10 font-bold text-brand-emerald'
+          : 'text-content-secondary hover:bg-bg-primary hover:text-content-primary',
+      )}
+    >
+      <span className="flex min-w-0 items-center gap-2 truncate">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{label}</span>
+      </span>
+      {selected && <Check size={13} className="shrink-0 text-brand-emerald" />}
+    </button>
   );
 }

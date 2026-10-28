@@ -33,7 +33,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
 import { AuthSheet } from './AuthSheet';
 import { ReviewPrompt } from './ReviewPrompt';
-import { PostFab, DISPATCH_SIGNAL_KEY } from './PostFab';
+import { PostFab, DISPATCH_SIGNAL_KEY, BOUNTY_SIGNAL_KEY } from './PostFab';
 import { AreaSwitcher, GLOBAL_AREA, type Area } from './AreaSwitcher';
 import { Feed } from '@/components/feed/Feed';
 import { Composer } from '@/components/feed/Composer';
@@ -318,6 +318,13 @@ export function AppShell() {
               /* ignore storage errors */
             }
             switchSection('news');
+          } else if (action === 'post_bounty') {
+            try {
+              window.sessionStorage.setItem(BOUNTY_SIGNAL_KEY, '1');
+            } catch {
+              /* ignore storage errors */
+            }
+            switchSection('earn');
           }
         }}
       />
