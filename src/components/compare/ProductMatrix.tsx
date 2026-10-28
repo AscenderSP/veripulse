@@ -27,6 +27,8 @@ import {
   MessageSquare,
   Bell,
   ArrowUpDown,
+  IndianRupee,
+  ChevronDown,
   Image as ImageIcon,
   Clock,
   Wrench,
@@ -51,7 +53,7 @@ import { DEMO_PRODUCTS, DEMO_HEAD_TO_HEAD_BATTLES, isSupabaseConfigured } from '
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiUrl } from '@/lib/api';
 import { formatINR, cn } from '@/lib/utils';
-import type { Product, ProductReview, ProductCategory, ProductMetricScores, HeadToHeadBattle } from '@/lib/types';
+import type { Product, ProductReview, ProductCategory, ProductMetricScores, HeadToHeadBattle, Lang } from '@/lib/types';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
@@ -311,6 +313,17 @@ export function ProductMatrix() {
   }
 
   // Available brands in the current category
+  const categoryCounts = useMemo(
+    () => ({
+      all: products.length,
+      mobile: products.filter((p) => p.category === 'mobile').length,
+      bike: products.filter((p) => p.category === 'bike').length,
+      car: products.filter((p) => p.category === 'car').length,
+      laptop: products.filter((p) => p.category === 'laptop').length,
+    }),
+    [products],
+  );
+
   const availableBrands = useMemo(() => {
     const brandSet = new Set<string>();
     products.forEach((p) => {
@@ -745,17 +758,50 @@ export function ProductMatrix() {
     );
   }
 
+  const priceCap =
+    selectedCategory === 'car' ? 5_000_000
+    : selectedCategory === 'bike' ? 500_000
+    : selectedCategory === 'laptop' ? 400_000
+    : selectedCategory === 'mobile' ? 150_000
+    : 500_000;
+
   return (
     <div className="space-y-4">
-      {/* ── Product Hub Sub-Feature Tabs ──
-          Sticky bar matching NewsHub's filter chrome: fully opaque
-          bg-bg-primary, backdrop blur, border-b. Docks right under the
-          global top bar on mobile and under the center-rail top on
-          desktop. */}
-      <div
-        className="sticky z-20 -mx-4 flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md scrollbar-none lg:!top-0"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
-      >
+      <ProductFilterBar
+        hubTab={hubTab}
+        setHubTab={setHubTab}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={(c) => {
+          setSelectedCategory(c);
+          setSelectedPriceRange('all');
+          setSelectedOption('all');
+          setCustomMinPrice('');
+          setCustomMaxPrice('');
+        }}
+        categoryCounts={categoryCounts}
+        selectedOption={selectedOption}
+        setSelectedOption={setSelectedOption}
+        optionFilters={optionFilters}
+        customMinPrice={customMinPrice}
+        setCustomMinPrice={setCustomMinPrice}
+        customMaxPrice={customMaxPrice}
+        setCustomMaxPrice={setCustomMaxPrice}
+        priceCap={priceCap}
+        selectedSort={selectedSort}
+        setSelectedSort={(s) => {
+          setSelectedSort(s);
+          setCategoryQuickRanking('all');
+        }}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        isAdvancedFiltersOpen={isAdvancedFiltersOpen}
+        setIsAdvancedFiltersOpen={setIsAdvancedFiltersOpen}
+        lang={lang}
+      />
+
+      {/* Old hub-tab chip row — hidden, kept only to preserve render order
+          references below. The ProductFilterBar replaces this UI. */}
+      <div className="hidden">
         <button
           onClick={() => setHubTab('browse')}
           className={`flex shrink-0 items-center gap-1.5 rounded-button px-3.5 py-2 text-xs font-bold transition-all ${
@@ -987,8 +1033,11 @@ export function ProductMatrix() {
       {/* Main Browse Tab */}
       {hubTab === 'browse' && (
         <>
-          {/* ── Top Bar: Search Bar & Actions ── */}
-          <Card className="p-3.5 sm:p-4">
+          {/* ── Legacy Top Bar: Search / Categories / Sort / Quick Rank ──
+              Hidden; replaced by the sticky ProductFilterBar at the top
+              of the hub. Quick-rank chips still handled inside this
+              hidden tree so the filtering state remains valid. */}
+          <Card className="hidden p-3.5 sm:p-4">
             <div className="flex flex-col gap-3">
               {/* Search Input */}
               <div className="relative flex items-center">
@@ -3386,6 +3435,458 @@ function ProductComparePage({
             <ArrowLeft size={14} className="mr-1" /> {lang === 'bn' ? 'প্রোডাক্ট হাবে ফিরে যান' : lang === 'hi' ? 'प्रोडक्ट हब पर वापस जाएं' : 'Back to Product Hub'}
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProductFilterBar — sticky, floating chip-filter bar matching NewsHub.
+// All of: View (hub tab), Category (with counts), Focus (option), Price
+// (slider popup), Sort, Search (icon toggle), Advanced (chip).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ProductFilterBarProps {
+  hubTab: 'browse' | 'battles' | 'copilot' | 'decay' | 'ask_owner' | 'service_radar';
+  setHubTab: (t: ProductFilterBarProps['hubTab']) => void;
+  selectedCategory: ProductCategory | 'all';
+  setSelectedCategory: (c: ProductCategory | 'all') => void;
+  categoryCounts: { all: number; mobile: number; bike: number; car: number; laptop: number };
+  selectedOption: string;
+  setSelectedOption: (o: string) => void;
+  optionFilters: { id: string; label: string }[];
+  customMinPrice: string;
+  setCustomMinPrice: (v: string) => void;
+  customMaxPrice: string;
+  setCustomMaxPrice: (v: string) => void;
+  priceCap: number;
+  selectedSort: 'default' | 'rating_desc' | 'owners_desc' | 'price_asc' | 'price_desc' | 'gap_asc' | 'tco_asc' | 'resale_desc' | 'repair_desc';
+  setSelectedSort: (s: ProductFilterBarProps['selectedSort']) => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  isAdvancedFiltersOpen: boolean;
+  setIsAdvancedFiltersOpen: (v: boolean) => void;
+  lang: Lang;
+}
+
+type PBMenu = null | 'view' | 'category' | 'focus' | 'price' | 'sort';
+
+function ProductFilterBar(p: ProductFilterBarProps) {
+  const [openMenu, setOpenMenu] = useState<PBMenu>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const hubOptions: { id: ProductFilterBarProps['hubTab']; icon: React.ReactNode; label: string }[] = [
+    { id: 'browse', icon: <Search size={13} />, label: 'Browse & Compare' },
+    { id: 'battles', icon: <Flame size={13} />, label: 'Head-to-Head Battles' },
+    { id: 'copilot', icon: <Sparkles size={13} />, label: 'AI Decision Copilot' },
+    { id: 'decay', icon: <Clock size={13} />, label: '6-Mo Decay Index' },
+    { id: 'ask_owner', icon: <MessageSquare size={13} />, label: 'Ask a Verified Owner' },
+    { id: 'service_radar', icon: <Wrench size={13} />, label: 'Service Center Radar' },
+  ];
+  const hubLabel = hubOptions.find((o) => o.id === p.hubTab)?.label ?? 'Browse';
+
+  const categoryOptions: { id: ProductCategory | 'all'; icon: React.ReactNode; label: string; count: number }[] = [
+    { id: 'all', icon: <Sparkles size={13} />, label: 'All', count: p.categoryCounts.all },
+    { id: 'mobile', icon: <Smartphone size={13} />, label: 'Mobiles', count: p.categoryCounts.mobile },
+    { id: 'bike', icon: <Bike size={13} />, label: 'Bikes & Scooters', count: p.categoryCounts.bike },
+    { id: 'car', icon: <Car size={13} />, label: 'Cars', count: p.categoryCounts.car },
+    { id: 'laptop', icon: <Laptop size={13} />, label: 'Laptops', count: p.categoryCounts.laptop },
+  ];
+  const catMeta = categoryOptions.find((o) => o.id === p.selectedCategory) ?? categoryOptions[0];
+
+  const sortOptions: { value: ProductFilterBarProps['selectedSort']; label: string; icon?: string }[] = [
+    { value: 'default', label: 'Recommended' },
+    { value: 'rating_desc', label: 'Highest Rated', icon: '⭐' },
+    { value: 'owners_desc', label: 'Most Verified Owners', icon: '👥' },
+    { value: 'price_asc', label: 'Price: Low → High', icon: '💵' },
+    { value: 'price_desc', label: 'Price: High → Low', icon: '💎' },
+    { value: 'gap_asc', label: 'Smallest Claim Gap', icon: '🎯' },
+    { value: 'tco_asc', label: 'Lowest TCO', icon: '💰' },
+    { value: 'resale_desc', label: 'Best Resale', icon: '📈' },
+    { value: 'repair_desc', label: 'Easiest to Repair', icon: '🔧' },
+  ];
+  const sortMeta = sortOptions.find((o) => o.value === p.selectedSort) ?? sortOptions[0];
+
+  const focusMeta = p.optionFilters.find((o) => o.id === p.selectedOption) ?? p.optionFilters[0];
+
+  const activeFilters =
+    (p.selectedCategory !== 'mobile' ? 1 : 0) +
+    (p.selectedOption !== 'all' ? 1 : 0) +
+    ((p.customMinPrice || p.customMaxPrice) ? 1 : 0) +
+    (p.searchQuery.trim() ? 1 : 0);
+
+  const priceChipLabel = p.customMinPrice || p.customMaxPrice
+    ? `₹${Number(p.customMinPrice || 0).toLocaleString()} – ₹${Number(p.customMaxPrice || p.priceCap).toLocaleString()}`
+    : 'Price range';
+
+  return (
+    <div
+      className="sticky z-20 -mx-4 bg-bg-primary backdrop-blur-md lg:!top-0"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+    >
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/95 px-2 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
+          <PFChip
+            icon={hubOptions.find((o) => o.id === p.hubTab)?.icon}
+            label={hubLabel}
+            active
+            open={openMenu === 'view'}
+            onClick={() => setOpenMenu(openMenu === 'view' ? null : 'view')}
+          />
+          <PFChip
+            icon={catMeta.icon}
+            label={`${catMeta.label} · ${catMeta.count}`}
+            active={p.selectedCategory !== 'mobile'}
+            open={openMenu === 'category'}
+            onClick={() => setOpenMenu(openMenu === 'category' ? null : 'category')}
+          />
+          {p.hubTab === 'browse' && p.optionFilters.length > 0 && (
+            <PFChip
+              icon={<span>{(focusMeta?.label ?? '').slice(0, 2)}</span>}
+              label={focusMeta?.label ? focusMeta.label.replace(/^[^\s]+\s/, '') : 'Focus'}
+              active={p.selectedOption !== 'all'}
+              open={openMenu === 'focus'}
+              onClick={() => setOpenMenu(openMenu === 'focus' ? null : 'focus')}
+            />
+          )}
+          {p.hubTab === 'browse' && (
+            <>
+              <PFChip
+                icon={<IndianRupee size={13} />}
+                label={priceChipLabel}
+                active={Boolean(p.customMinPrice || p.customMaxPrice)}
+                open={openMenu === 'price'}
+                onClick={() => setOpenMenu(openMenu === 'price' ? null : 'price')}
+              />
+              <PFChip
+                icon={<ArrowUpDown size={13} />}
+                label={sortMeta.label}
+                open={openMenu === 'sort'}
+                onClick={() => setOpenMenu(openMenu === 'sort' ? null : 'sort')}
+              />
+              <button
+                onClick={() => setSearchOpen(!searchOpen)}
+                aria-label="Toggle search"
+                aria-pressed={searchOpen || p.searchQuery.length > 0}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium shadow-xs transition-all focus:outline-none focus:ring-1 focus:ring-brand-sky/50',
+                  searchOpen || p.searchQuery.length > 0
+                    ? 'border-brand-sky bg-brand-sky/15 text-brand-sky shadow-sm'
+                    : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-sky/40',
+                )}
+              >
+                <Search size={13} />
+                {p.searchQuery.length > 0 ? 'On' : ''}
+              </button>
+              <button
+                onClick={() => p.setIsAdvancedFiltersOpen(!p.isAdvancedFiltersOpen)}
+                aria-pressed={p.isAdvancedFiltersOpen}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium shadow-xs transition-all focus:outline-none focus:ring-1 focus:ring-brand-emerald/50',
+                  p.isAdvancedFiltersOpen
+                    ? 'border-brand-emerald bg-brand-emerald text-[#04110b] shadow-sm'
+                    : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-emerald/40',
+                )}
+              >
+                <SlidersHorizontal size={13} />
+                Advanced
+              </button>
+            </>
+          )}
+
+          {activeFilters > 0 && (
+            <button
+              onClick={() => {
+                p.setSelectedCategory('mobile');
+                p.setSelectedOption('all');
+                p.setCustomMinPrice('');
+                p.setCustomMaxPrice('');
+                p.setSearchQuery('');
+              }}
+              className="ml-auto shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-brand-rose hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {searchOpen && (
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+            <input
+              autoFocus
+              type="text"
+              value={p.searchQuery}
+              onChange={(e) => p.setSearchQuery(e.target.value)}
+              placeholder="Search by name, brand, or option…"
+              className="w-full rounded-full border border-[var(--border-subtle)] bg-bg-surface py-2 pl-9 pr-9 text-xs text-content-primary placeholder:text-content-muted focus:border-brand-emerald focus:outline-none"
+            />
+            {p.searchQuery && (
+              <button
+                onClick={() => p.setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {openMenu === 'view' && (
+        <PFDropdown onClose={() => setOpenMenu(null)}>
+          {hubOptions.map((o) => (
+            <PFRow
+              key={o.id}
+              selected={p.hubTab === o.id}
+              onClick={() => {
+                p.setHubTab(o.id);
+                setOpenMenu(null);
+              }}
+              icon={o.icon}
+              label={o.label}
+            />
+          ))}
+        </PFDropdown>
+      )}
+
+      {openMenu === 'category' && (
+        <PFDropdown onClose={() => setOpenMenu(null)}>
+          {categoryOptions.map((o) => (
+            <PFRow
+              key={o.id}
+              selected={p.selectedCategory === o.id}
+              onClick={() => {
+                p.setSelectedCategory(o.id);
+                setOpenMenu(null);
+              }}
+              icon={o.icon}
+              label={`${o.label} · ${o.count}`}
+            />
+          ))}
+        </PFDropdown>
+      )}
+
+      {openMenu === 'focus' && (
+        <PFDropdown onClose={() => setOpenMenu(null)}>
+          {p.optionFilters.map((o) => (
+            <PFRow
+              key={o.id}
+              selected={p.selectedOption === o.id}
+              onClick={() => {
+                p.setSelectedOption(o.id);
+                setOpenMenu(null);
+              }}
+              icon={<span>{o.label.split(' ')[0]}</span>}
+              label={o.label.replace(/^[^\s]+\s/, '')}
+            />
+          ))}
+        </PFDropdown>
+      )}
+
+      {openMenu === 'sort' && (
+        <PFDropdown onClose={() => setOpenMenu(null)}>
+          {sortOptions.map((o) => (
+            <PFRow
+              key={o.value}
+              selected={p.selectedSort === o.value}
+              onClick={() => {
+                p.setSelectedSort(o.value);
+                setOpenMenu(null);
+              }}
+              icon={<span>{o.icon ?? '•'}</span>}
+              label={o.label}
+            />
+          ))}
+        </PFDropdown>
+      )}
+
+      {openMenu === 'price' && (
+        <PFDropdown onClose={() => setOpenMenu(null)}>
+          <PriceSlider
+            min={Number(p.customMinPrice) || 0}
+            max={Number(p.customMaxPrice) || p.priceCap}
+            cap={p.priceCap}
+            onChange={(mn, mx) => {
+              p.setCustomMinPrice(mn > 0 ? String(mn) : '');
+              p.setCustomMaxPrice(mx < p.priceCap ? String(mx) : '');
+            }}
+            onReset={() => {
+              p.setCustomMinPrice('');
+              p.setCustomMaxPrice('');
+            }}
+          />
+        </PFDropdown>
+      )}
+    </div>
+  );
+}
+
+function PFChip({
+  icon,
+  label,
+  active,
+  open,
+  onClick,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  active?: boolean;
+  open?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium shadow-xs transition-all focus:outline-none focus:ring-1 focus:ring-brand-emerald/50',
+        active
+          ? 'border-brand-emerald bg-brand-emerald text-[#04110b] shadow-sm'
+          : open
+            ? 'border-brand-emerald bg-bg-elevated text-content-primary ring-1 ring-brand-emerald/30'
+            : 'border-[var(--border-subtle)] bg-bg-surface text-content-primary hover:border-brand-emerald/40',
+      )}
+    >
+      {icon && <span className={cn('shrink-0', !active && 'text-content-muted')}>{icon}</span>}
+      <span className="max-w-[11rem] truncate">{label}</span>
+      <ChevronDown
+        size={12}
+        className={cn('shrink-0 transition-transform duration-200', open && 'rotate-180', !active && 'text-content-muted')}
+      />
+    </button>
+  );
+}
+
+function PFDropdown({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function esc(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('mousedown', h);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', h);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [onClose]);
+  return (
+    <div className="px-4 pb-3">
+      <div
+        ref={ref}
+        role="listbox"
+        tabIndex={-1}
+        className="animate-fade-in max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border-strong)] bg-bg-elevated p-1.5 shadow-2xl backdrop-blur-xl"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PFRow({
+  icon,
+  label,
+  selected,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      role="option"
+      aria-selected={selected}
+      className={cn(
+        'flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors',
+        selected
+          ? 'bg-brand-emerald/10 font-bold text-brand-emerald'
+          : 'text-content-secondary hover:bg-bg-primary hover:text-content-primary',
+      )}
+    >
+      <span className="flex min-w-0 items-center gap-2 truncate">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{label}</span>
+      </span>
+      {selected && <Check size={13} className="shrink-0 text-brand-emerald" />}
+    </button>
+  );
+}
+
+function PriceSlider({
+  min,
+  max,
+  cap,
+  onChange,
+  onReset,
+}: {
+  min: number;
+  max: number;
+  cap: number;
+  onChange: (min: number, max: number) => void;
+  onReset: () => void;
+}) {
+  const step = cap > 1_000_000 ? 10_000 : cap > 200_000 ? 2000 : 500;
+  const fmt = (n: number) =>
+    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(0)}k` : `₹${n}`;
+
+  return (
+    <div className="space-y-3 p-3">
+      <div className="flex items-center justify-between text-xs font-mono font-semibold text-content-primary">
+        <span>{fmt(min)}</span>
+        <span>{fmt(max)}</span>
+      </div>
+      <div className="space-y-2">
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-content-muted">Min</span>
+          <input
+            type="range"
+            min={0}
+            max={cap}
+            step={step}
+            value={min}
+            onChange={(e) => {
+              const v = Math.min(Number(e.target.value), max - step);
+              onChange(v, max);
+            }}
+            className="mt-1 w-full accent-brand-emerald"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-content-muted">Max</span>
+          <input
+            type="range"
+            min={0}
+            max={cap}
+            step={step}
+            value={max}
+            onChange={(e) => {
+              const v = Math.max(Number(e.target.value), min + step);
+              onChange(min, v);
+            }}
+            className="mt-1 w-full accent-brand-emerald"
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-content-muted">Range 0 – {fmt(cap)}</span>
+        <button
+          onClick={onReset}
+          className="rounded-full border border-[var(--border-subtle)] px-2.5 py-1 text-[11px] font-semibold text-content-secondary hover:border-brand-rose/60 hover:text-brand-rose"
+        >
+          Reset
+        </button>
       </div>
     </div>
   );
