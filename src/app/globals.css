@@ -7,23 +7,29 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg-primary: #070b14;
-  --bg-surface: #0e1626;
-  --bg-elevated: #162035;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  /* Dark mode — calmer slate.
+     Base lifted from near-black (#070b14) to a softer graphite so the
+     palette stops feeling heavy. The three bg steps move together by
+     roughly 5-6 LAB points, so cards and chips still read as separate
+     layers without the previous jump. Accent colours were desaturated
+     (-15 to -20 chroma points) so the UI stops glowing. */
+  --bg-primary: #121826;
+  --bg-surface: #1a2235;
+  --bg-elevated: #212b42;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.09);
 
-  --brand-emerald: #34d399;
-  --brand-emerald-glow: rgba(52, 211, 153, 0.15);
-  --brand-amber: #fbbf24;
-  --brand-rose: #fb7185;
-  --brand-sky: #38bdf8;
-  --brand-violet: #a78bfa;
-  --brand-cyan: #22d3ee;
+  --brand-emerald: #5bbf96;
+  --brand-emerald-glow: rgba(91, 191, 150, 0.1);
+  --brand-amber: #e3b05c;
+  --brand-rose: #e58190;
+  --brand-sky: #5aa9db;
+  --brand-violet: #9c8bd8;
+  --brand-cyan: #5dbfd1;
 
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #e3e8f1;
+  --text-secondary: #a0a9ba;
+  --text-muted: #6b7384;
 
   --radius-card: 20px;
   --radius-button: 14px;
@@ -33,24 +39,24 @@
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Glass system */
-  --glass-bg: rgba(14, 22, 38, 0.55);
-  --glass-bg-heavy: rgba(14, 22, 38, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-highlight: rgba(255, 255, 255, 0.04);
+  --glass-bg: rgba(26, 34, 53, 0.6);
+  --glass-bg-heavy: rgba(26, 34, 53, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-highlight: rgba(255, 255, 255, 0.035);
   --glass-blur: 24px;
-  --glass-saturate: 180%;
+  --glass-saturate: 160%;
 
   /* Dynamic gradient */
   --gradient-brand: linear-gradient(135deg, var(--brand-emerald), var(--brand-sky), var(--brand-violet));
   --gradient-warm: linear-gradient(135deg, var(--brand-amber), var(--brand-rose), var(--brand-violet));
   --gradient-cool: linear-gradient(135deg, var(--brand-sky), var(--brand-cyan), var(--brand-emerald));
 
-  /* Shadows */
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 var(--glass-highlight);
-  --shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--glass-border);
-  --shadow-glow-emerald: 0 0 30px rgba(52, 211, 153, 0.2), 0 0 60px rgba(52, 211, 153, 0.05);
-  --shadow-glow-sky: 0 0 30px rgba(56, 189, 248, 0.2);
-  --shadow-glow-rose: 0 0 30px rgba(251, 113, 133, 0.2);
+  /* Shadows — softer so cards don't crush the background */
+  --shadow-glass: 0 6px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 var(--glass-highlight);
+  --shadow-elevated: 0 14px 40px rgba(0, 0, 0, 0.32), 0 0 0 1px var(--glass-border);
+  --shadow-glow-emerald: 0 0 24px rgba(91, 191, 150, 0.14);
+  --shadow-glow-sky: 0 0 24px rgba(90, 169, 219, 0.14);
+  --shadow-glow-rose: 0 0 24px rgba(229, 129, 144, 0.14);
 
   /* Spring timing */
   --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -65,35 +71,42 @@
 [data-theme='light'],
 html.light,
 body.light-theme {
-  --bg-primary: #f0f2f5;
-  --bg-surface: #ffffff;
-  --bg-elevated: #f8f9fb;
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-strong: rgba(0, 0, 0, 0.1);
+  /* Light mode — warm off-white, not paper-white.
+     Pure white (#ffffff) surfaces on top of a cool grey base
+     (#f0f2f5) read as "too bright" against mixed content. We shift
+     the whole set towards a muted warm neutral so the UI feels like
+     parchment rather than a bulb. Primary text goes from near-black
+     (#0f172a) to a slate (#2a3240) which keeps 7:1 contrast without
+     the harsh edge. Accent colours drop one shade in saturation. */
+  --bg-primary: #eceff3;
+  --bg-surface: #f3f5f8;
+  --bg-elevated: #fafbfc;
+  --border-subtle: rgba(15, 23, 42, 0.055);
+  --border-strong: rgba(15, 23, 42, 0.095);
 
-  --brand-emerald: #059669;
-  --brand-emerald-glow: rgba(5, 150, 105, 0.1);
-  --brand-amber: #d97706;
-  --brand-rose: #e11d48;
-  --brand-sky: #0284c7;
-  --brand-violet: #7c3aed;
-  --brand-cyan: #0891b2;
+  --brand-emerald: #0f8c69;
+  --brand-emerald-glow: rgba(15, 140, 105, 0.08);
+  --brand-amber: #c17912;
+  --brand-rose: #c42f52;
+  --brand-sky: #1a74b0;
+  --brand-violet: #7a5bd4;
+  --brand-cyan: #1b8ba6;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #2a3240;
+  --text-secondary: #58637a;
+  --text-muted: #8a94a6;
 
-  --glass-bg: rgba(255, 255, 255, 0.78);
-  --glass-bg-heavy: rgba(255, 255, 255, 0.92);
-  --glass-border: rgba(0, 0, 0, 0.1);
-  --glass-highlight: rgba(255, 255, 255, 0.95);
+  --glass-bg: rgba(246, 247, 249, 0.78);
+  --glass-bg-heavy: rgba(246, 247, 249, 0.92);
+  --glass-border: rgba(15, 23, 42, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.75);
   --glass-blur: 20px;
 
-  --shadow-glass: 0 4px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 var(--glass-highlight);
-  --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--glass-border);
-  --shadow-glow-emerald: 0 0 20px rgba(5, 150, 105, 0.12);
-  --shadow-glow-sky: 0 0 20px rgba(2, 132, 199, 0.12);
-  --shadow-glow-rose: 0 0 20px rgba(225, 29, 72, 0.12);
+  --shadow-glass: 0 3px 16px rgba(15, 23, 42, 0.04), inset 0 1px 0 var(--glass-highlight);
+  --shadow-elevated: 0 10px 30px rgba(15, 23, 42, 0.07), 0 0 0 1px var(--glass-border);
+  --shadow-glow-emerald: 0 0 18px rgba(15, 140, 105, 0.09);
+  --shadow-glow-sky: 0 0 18px rgba(26, 116, 176, 0.09);
+  --shadow-glow-rose: 0 0 18px rgba(196, 47, 82, 0.09);
 }
 
 * {
@@ -134,7 +147,7 @@ body.light-theme {
 
 /* ── iOS-like Selection ── */
 ::selection {
-  background: rgba(52, 211, 153, 0.3);
+  background: rgba(91, 191, 150, 0.25);
   color: var(--text-primary);
 }
 
