@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import {
   User,
   UserCheck,
@@ -1070,9 +1071,16 @@ function ContactsAndSocialTab({
                 className="flex items-center justify-between rounded-card border border-[var(--border-subtle)] bg-bg-primary p-3"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 overflow-hidden rounded-full bg-bg-elevated">
+                  <div className="relative h-9 w-9 overflow-hidden rounded-full bg-bg-elevated">
                     {c.avatar ? (
-                      <img src={c.avatar} alt={c.name} className="h-full w-full object-cover" />
+                      <Image
+                        src={c.avatar}
+                        alt={c.name}
+                        fill
+                        sizes="36px"
+                        className="object-cover"
+                        unoptimized
+                      />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center font-mono text-xs font-bold text-content-muted">
                         {c.name.slice(0, 2).toUpperCase()}

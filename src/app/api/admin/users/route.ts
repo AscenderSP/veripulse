@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
 import { writeAudit } from '@/lib/auditLog';
 import { sanitizeUserText } from '@/lib/sanitize';
+import { sendPush } from '@/lib/pushSender';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -121,6 +122,13 @@ export async function PATCH(req: NextRequest) {
   if (notification) {
     try {
       await g.admin.from('notifications').insert({ user_id: userId, ...notification });
+      // Also push to any registered devices — a suspended user usually
+      // can't open the app to see an in-app notification.
+      void sendPush(g.admin, userId, {
+        title: notification.title,
+        body: notification.body,
+        data: { type: notification.type },
+      });
     } catch {
       /* non-fatal */
     }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { onRefresh } from '@/lib/refreshBus';
 import {
   Target,
   Flame,
@@ -25,8 +26,13 @@ type EarnTab = 'bounties' | 'dividends' | 'grants' | 'passport' | 'badges';
 
 export function EarnHub({ onVerify }: { onVerify?: () => void }) {
   const [tab, setTab] = useState<EarnTab>('bounties');
+  const [reloadKey, setReloadKey] = useState(0);
   const { profile, patchDemoProfile } = useSession();
   const { lang } = useLang();
+
+  // Pull-to-refresh: force the active sub-view to remount so its own
+  // first-mount fetch runs again.
+  useEffect(() => onRefresh('earn', () => setReloadKey((k) => k + 1)), []);
 
   function handleClaimSuccess(amount: number) {
     if (profile) {
@@ -100,12 +106,15 @@ export function EarnHub({ onVerify }: { onVerify?: () => void }) {
         </button>
       </div>
 
-      {/* Render selected view */}
-      {tab === 'bounties' && <BountyQuests onClaimSuccess={handleClaimSuccess} />}
-      {tab === 'dividends' && <SentinelPool />}
-      {tab === 'grants' && <MilestoneGrants onClaimSuccess={handleClaimSuccess} />}
-      {tab === 'passport' && <OwnershipPassportView />}
-      {tab === 'badges' && <BadgesView />}
+      {/* Render selected view. `reloadKey` is bumped on pull-to-refresh so
+          each sub-view's initial fetch runs again on remount. */}
+      <div key={reloadKey}>
+        {tab === 'bounties' && <BountyQuests onClaimSuccess={handleClaimSuccess} />}
+        {tab === 'dividends' && <SentinelPool />}
+        {tab === 'grants' && <MilestoneGrants onClaimSuccess={handleClaimSuccess} />}
+        {tab === 'passport' && <OwnershipPassportView />}
+        {tab === 'badges' && <BadgesView />}
+      </div>
     </div>
   );
 }

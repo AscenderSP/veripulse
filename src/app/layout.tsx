@@ -4,6 +4,7 @@ import { LangProvider } from '@/hooks/useLang';
 import { SessionProvider } from '@/hooks/useSession';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { GlobalErrorBoundary } from '@/components/shell/GlobalErrorBoundary';
+import { SentryBootstrap } from '@/components/shell/SentryBootstrap';
 
 export const metadata: Metadata = {
   title: 'VeriPulse — Verified News & Owner Intelligence',
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body suppressHydrationWarning>
+        <SentryBootstrap />
         <GlobalErrorBoundary>
           <ThemeProvider>
             <LangProvider>

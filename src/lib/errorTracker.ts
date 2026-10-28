@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════
-//  VeriPulse — lightweight error + event reporter
-//  Thin shim so the rest of the app can call track / reportError without
-//  caring whether Sentry / PostHog / Vercel Analytics is actually wired up.
+//  VeriPulse — error + event reporter
 //
-//  To swap in Sentry: install @sentry/nextjs, init in sentry.client.config.ts
-//  and sentry.server.config.ts, then replace the implementations below with
-//  Sentry.captureException / Sentry.captureMessage. All call sites keep
-//  working.
+//  Dual-sink: in production, every call fans out to the local /api/log/*
+//  endpoints (app_logs / app_events tables) AND to Sentry if the SDK is
+//  loaded globally. The Sentry call is wrapped in `typeof window.Sentry`
+//  so we don't take a hard dependency on @sentry/nextjs — install it via
+//  `npm i @sentry/nextjs` and the import block in `sentry.client.config.ts`
+//  will light up both sinks automatically.
 // ════════════════════════════════════════════════════════════════════════
 
 export interface ErrorContext {
@@ -16,25 +16,57 @@ export interface ErrorContext {
   extra?: Record<string, unknown>;
 }
 
-const dsn = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_SENTRY_DSN : undefined;
 const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+const apiOrigin =
+  typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_API_ORIGIN ?? '' : '';
 
-/** Report a thrown error. In dev it goes to the console; in prod it would ship to Sentry. */
+interface SentryGlobal {
+  captureException?: (err: unknown, hint?: { contexts?: Record<string, unknown> }) => void;
+  captureMessage?: (msg: string, level?: string) => void;
+}
+
+function getSentry(): SentryGlobal | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as { Sentry?: SentryGlobal };
+  return w.Sentry ?? null;
+}
+
+function beaconUrl(path: string): string {
+  if (!apiOrigin || apiOrigin === '/') return path;
+  return `${apiOrigin.replace(/\/+$/, '')}${path}`;
+}
+
+/** Report a thrown error. Routed to Sentry (if loaded) + /api/log/error. */
 export function reportError(err: unknown, context: ErrorContext = {}): void {
   const message = err instanceof Error ? err.message : String(err);
   const stack = err instanceof Error ? err.stack : undefined;
 
-  if (!isProd || !dsn) {
+  // 1. Sentry if available.
+  try {
+    const Sentry = getSentry();
+    Sentry?.captureException?.(err, { contexts: { vp: context as Record<string, unknown> } });
+  } catch {
+    /* non-fatal */
+  }
+
+  if (!isProd) {
     // eslint-disable-next-line no-console
     console.error('[reportError]', message, { ...context, stack });
     return;
   }
-  // In prod with a DSN set, forward to the browser endpoint if possible.
-  // The real wiring (Sentry.captureException) replaces this block.
+
+  // 2. Own beacon → app_logs.
   try {
+    const body = JSON.stringify({ message, stack, context, ts: Date.now() });
     if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-      const body = JSON.stringify({ message, stack, context, ts: Date.now() });
-      navigator.sendBeacon('/api/log/error', body);
+      navigator.sendBeacon(beaconUrl('/api/log/error'), body);
+    } else {
+      void fetch(beaconUrl('/api/log/error'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      });
     }
   } catch {
     /* don't let the reporter itself throw */
@@ -63,11 +95,16 @@ export function track(event: AnalyticsEvent, payload: AnalyticsPayload = {}): vo
     return;
   }
   try {
+    const body = JSON.stringify({ event, payload, ts: Date.now() });
     if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-      navigator.sendBeacon(
-        '/api/log/event',
-        JSON.stringify({ event, payload, ts: Date.now() }),
-      );
+      navigator.sendBeacon(beaconUrl('/api/log/event'), body);
+    } else {
+      void fetch(beaconUrl('/api/log/event'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      });
     }
   } catch {
     /* no-op */

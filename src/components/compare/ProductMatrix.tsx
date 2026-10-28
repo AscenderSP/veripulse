@@ -63,6 +63,7 @@ import { ServiceRadar } from '@/components/product/ServiceRadar';
 import { AICopilot } from '@/components/product/AICopilot';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
+import { onRefresh } from '@/lib/refreshBus';
 
 /** Hero image for a product card. Uses the submitted `imageUrl` if present,
  *  otherwise fetches a related image from Wikipedia using the product name as
@@ -196,9 +197,9 @@ export function ProductMatrix() {
 
   // Load live products from Supabase
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
     const sb = getSupabaseBrowserClient();
     const loadLiveProducts = async () => {
+      if (!isSupabaseConfigured()) return;
       try {
         const { data, error } = await sb.from('products').select('*');
         if (!error && data && data.length > 0) {
@@ -212,6 +213,7 @@ export function ProductMatrix() {
       }
     };
     loadLiveProducts();
+    return onRefresh('compare', loadLiveProducts);
   }, []);
 
   // Filtering states

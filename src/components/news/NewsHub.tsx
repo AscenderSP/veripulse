@@ -54,6 +54,8 @@ import { t } from '@/lib/translations';
 import { getReferenceImage, isNewsExpired, isStockImage, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
+import { onRefresh } from '@/lib/refreshBus';
+import { EmptyState } from '@/components/ui/Skeleton';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 /** Image for an article card. Verified photo wins; otherwise a subject-related
@@ -238,8 +240,10 @@ export function NewsHub() {
       })
       .subscribe();
 
+    const unsubRefresh = onRefresh('news', loadLiveStories);
     return () => {
       sb.removeChannel(channel);
+      unsubRefresh();
     };
   }, []);
   // User's active votes: articleId -> ConsensusVote
@@ -1076,9 +1080,10 @@ export function NewsHub() {
         })}
 
         {filteredArticles.length === 0 && (
-          <Card className="p-8 text-center border-[var(--border-subtle)] bg-bg-surface text-content-muted text-xs">
-            No news stories found matching your filter criteria. Try clearing tags or searching for broader topics.
-          </Card>
+          <EmptyState
+            title="No news stories found"
+            body="Try clearing a tag or broadening the category. Pull to refresh for fresh dispatches."
+          />
         )}
       </div>
 

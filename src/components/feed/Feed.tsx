@@ -16,6 +16,8 @@ import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { isNewsExpired } from '@/lib/referenceImages';
 import type { Area } from '@/components/shell/AreaSwitcher';
+import { onRefresh } from '@/lib/refreshBus';
+import { SkeletonList, EmptyState } from '@/components/ui/Skeleton';
 
 const VOTE_ERRORS: Record<string, string> = {
   RING_RESTRICTED: 'This story is still in a review ring above your tier.',
@@ -39,29 +41,6 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
       scope !== 'hyperlocal' ||
       lat === null ||
       (s.lat !== null && s.lng !== null && distanceKm(lat, lng!, s.lat, s.lng) <= 10),
-  );
-}
-
-function StoryCardSkeleton() {
-  return (
-    <div className="rounded-card border border-[var(--border-subtle)] bg-bg-surface p-4 space-y-3 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-16 rounded-full bg-bg-elevated" />
-          <div className="h-4 w-24 rounded bg-bg-elevated" />
-        </div>
-        <div className="h-4 w-12 rounded bg-bg-elevated" />
-      </div>
-      <div className="space-y-2">
-        <div className="h-4 w-3/4 rounded bg-bg-elevated" />
-        <div className="h-3 w-full rounded bg-bg-elevated/70" />
-        <div className="h-3 w-5/6 rounded bg-bg-elevated/70" />
-      </div>
-      <div className="flex items-center justify-between pt-2">
-        <div className="h-6 w-28 rounded-full bg-bg-elevated" />
-        <div className="h-8 w-20 rounded-button bg-bg-elevated" />
-      </div>
-    </div>
   );
 }
 
@@ -148,6 +127,9 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
     }
     load();
   }, [scope, area.lat, area.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pull-to-refresh in the mobile shell triggers a reload.
+  useEffect(() => onRefresh('feed', load), [load]);
 
   // Realtime: live credibility / stage changes; new stories trigger a reload.
   useEffect(() => {
@@ -273,18 +255,18 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
       ) : (
         <>
           {loading ? (
-            <div className="space-y-3">
-              <StoryCardSkeleton />
-              <StoryCardSkeleton />
-            </div>
+            <SkeletonList rows={3} rowHeight={160} />
           ) : stories.length === 0 ? (
-            <div className="rounded-card border border-dashed border-[var(--border-subtle)] py-16 text-center text-sm text-content-muted">
-              {vault
-                ? t('noQuarantined', lang)
-                : scope === 'hyperlocal'
-                  ? t('nothingNearby', lang)
-                  : t('noStoriesYet', lang)}
-            </div>
+            <EmptyState
+              title={
+                vault
+                  ? t('noQuarantined', lang)
+                  : scope === 'hyperlocal'
+                    ? t('nothingNearby', lang)
+                    : t('noStoriesYet', lang)
+              }
+              body="Pull to refresh, or come back in a few minutes."
+            />
           ) : (
             stories.map((s, i) => (
               <div

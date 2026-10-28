@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Loader2, Trophy, Flame, CheckCircle2, CircleDollarSign } from 'lucide-react';
 import type { Profile } from '@/lib/types';
 import { fetchLeaderboard, type LeaderboardPayload } from './adminApi';
@@ -107,8 +108,14 @@ function Column({
               </span>
               {i === 0 && <Trophy size={11} className="shrink-0 text-brand-amber" />}
               {p.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.avatar_url} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                <Image
+                  src={p.avatar_url}
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 shrink-0 rounded-full object-cover"
+                  unoptimized
+                />
               ) : null}
               <span className="truncate text-[12px] text-content-primary">
                 {p.full_name ?? `@${p.username}`}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { Loader2, IndianRupee, Eye, Wallet, Send, Trophy, TrendingUp } from 'lucide-react';
 import { fetchEarnings, type EarningsSummary } from './adminApi';
 
@@ -124,8 +125,14 @@ export function EarningsPanel({ demo, localPreview }: { demo: boolean; localPrev
                   {i + 1}.
                 </span>
                 {p.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  <Image
+                    src={p.avatar_url}
+                    alt=""
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 rounded-full object-cover"
+                    unoptimized
+                  />
                 ) : null}
                 <span className="truncate text-content-primary">
                   {p.full_name ?? `@${p.username}`}

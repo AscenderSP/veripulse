@@ -268,20 +268,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
 
     async signInWithDigiLocker(aadhaarLast4 = '0000') {
-      // DigiLocker production flow needs a Meri Pehchaan client registration
-      // + redirect to accounts.digitallocker.gov.in; here we simulate the
-      // callback so the UI can be exercised end-to-end in demo mode. In live
-      // mode this is still a stub until the integration is approved — we
-      // mark the profile as ID-verified and record the method.
+      // Live mode (DIGILOCKER_CLIENT_ID set on the server): redirect into the
+      // real OAuth flow at /api/verify/digilocker/start. The callback marks
+      // the profile verified and the browser is sent back to '/'.
+      // Demo mode (no backend): simulate the flow locally so the UI can be
+      // exercised end-to-end without the Meri Pehchaan integration.
+      if (!demo && typeof window !== 'undefined') {
+        window.location.href = '/api/verify/digilocker/start';
+        return {};
+      }
+
       const stub = aadhaarLast4.replace(/\D/g, '').slice(-4).padStart(4, '0');
       const prof: Profile = {
         ...DEMO_PROFILE,
         id: `usr-dl-${Date.now().toString(36)}`,
         username: `citizen_${stub}`,
-        full_name: `DigiLocker Citizen ${stub}`,
+        full_name: `DigiLocker Citizen ${stub} (simulated)`,
         wallet_balance_inr: 100,
         trust_score: 82,
-        badge: 'DigiLocker-verified Citizen',
+        badge: 'DigiLocker-verified Citizen (simulated)',
         is_id_verified: true,
         is_ownership_verified: false,
         is_sentinel_verified: false,
@@ -387,7 +392,51 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async activateSubscription(tier) {
       if (!profile) return { error: 'Not signed in.' };
-      // Demo: assume payment succeeded. Live mode wires Razorpay subscription.
+
+      // Live mode: open a Razorpay subscription. The webhook (/api/webhooks/
+      // razorpay) is what actually flips the profile — the browser cannot
+      // forge a tier upgrade because the current call just creates a
+      // subscription order and launches Checkout. The tier change propagates
+      // to the client on the next profile refresh.
+      if (!demo && tier === 'pro') {
+        try {
+          const resp = await fetch('/api/subscription/order', { method: 'POST' });
+          if (!resp.ok) {
+            const detail = await resp.text().catch(() => '');
+            return { error: `Payment setup failed: ${detail || resp.status}` };
+          }
+          const { subscriptionId, keyId } = (await resp.json()) as {
+            subscriptionId: string;
+            keyId: string;
+          };
+          if (typeof window !== 'undefined') {
+            // Load Razorpay script on demand so static-export builds don't
+            // pull it in.
+            await new Promise<void>((resolveLoad, rejectLoad) => {
+              if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolveLoad();
+              const s = document.createElement('script');
+              s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+              s.onload = () => resolveLoad();
+              s.onerror = () => rejectLoad(new Error('razorpay_load_failed'));
+              document.head.appendChild(s);
+            });
+            const RP = (window as unknown as { Razorpay?: new (opts: unknown) => { open: () => void } }).Razorpay;
+            if (!RP) return { error: 'Checkout unavailable.' };
+            new RP({
+              key: keyId,
+              subscription_id: subscriptionId,
+              name: 'VeriPulse Pro',
+              description: 'Pro Reporter — 30-day subscription',
+              theme: { color: '#10b981' },
+            }).open();
+          }
+          return {};
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : 'Checkout failed.' };
+        }
+      }
+
+      // Demo: optimistic local activation.
       const nextMeta = tier === 'pro' ? ACCOUNT_TYPES.pro_reporter : null;
       const expires = new Date(Date.now() + 30 * 86400_000).toISOString();
       const updated: Profile = {

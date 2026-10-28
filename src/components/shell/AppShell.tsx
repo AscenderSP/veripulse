@@ -25,7 +25,10 @@ import {
   Activity,
 } from 'lucide-react';
 import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
-import { triggerTapHaptic } from '@/lib/nativeHardware';
+import { triggerTapHaptic, triggerSuccessHaptic } from '@/lib/nativeHardware';
+import { PullToRefreshIndicator } from './PullToRefreshIndicator';
+import { emitRefresh } from '@/lib/refreshBus';
+import Image from 'next/image';
 import { LangSwitch } from './LangSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
@@ -99,6 +102,7 @@ function useQuarantineCount(): number {
 }
 
 export function AppShell() {
+  const mainRef = useRef<HTMLElement>(null);
   // Start on 'feed' for first render so SSR and the first client render match,
   // then rehydrate from localStorage so a refresh keeps the user on the same
   // section instead of snapping back to the landing feed.
@@ -147,6 +151,12 @@ export function AppShell() {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
+    // Register for push notifications. No-op on web / when the plugin
+    // isn't present; the Capacitor shell lights up when the FCM project
+    // and APNs auth key are set.
+    void import('@/lib/pushNotifications').then(({ registerForPushNotifications }) =>
+      registerForPushNotifications(process.env.NEXT_PUBLIC_API_ORIGIN ?? ''),
+    );
   }, []);
 
   return (
@@ -198,12 +208,25 @@ export function AppShell() {
           own internal scroll — only the article/content area scrolls
           while the frame (sidebars + top bar + fab) stays docked. */}
       <main
+        ref={mainRef}
         className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:sticky lg:top-3 lg:my-3 lg:h-[calc(100vh-1.5rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:px-6 lg:pb-8 lg:pt-5 lg:shadow-xl lg:glass-heavy"
         style={{
           // Desktop-only card chrome mirrors the sidebars.
           borderColor: 'var(--glass-border)',
         }}
       >
+        <PullToRefreshIndicator
+          targetRef={mainRef}
+          onRefresh={async () => {
+            await triggerSuccessHaptic();
+            const scope =
+              section === 'feed' ? 'feed' :
+              section === 'news' ? 'news' :
+              section === 'earn' ? 'earn' :
+              section === 'compare' ? 'compare' : 'all';
+            await emitRefresh(scope);
+          }}
+        />
         {/* Mobile top bar. Sticky so it stays visible while the section
             content scrolls underneath; the opaque background matches
             --bg-primary so content doesn't bleed through. */}
@@ -405,8 +428,14 @@ function AccountChip({
       <div className="flex items-center gap-2 min-w-0">
         <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border-2 border-brand-emerald/40 bg-bg-elevated">
           {profile.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={profile.avatar_url}
+              alt=""
+              fill
+              sizes="28px"
+              className="object-cover"
+              unoptimized
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-[11px] font-bold text-brand-emerald">
               {(profile.full_name ?? profile.username).slice(0, 1).toUpperCase()}
