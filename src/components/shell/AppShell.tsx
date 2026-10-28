@@ -34,7 +34,7 @@ import { RightRail } from './RightRail';
 import { AuthSheet } from './AuthSheet';
 import { ReviewPrompt } from './ReviewPrompt';
 import { PostFab, DISPATCH_SIGNAL_KEY, BOUNTY_SIGNAL_KEY } from './PostFab';
-import { AreaSwitcher, GLOBAL_AREA, type Area } from './AreaSwitcher';
+import { GLOBAL_AREA, type Area } from './AreaSwitcher';
 import { Feed } from '@/components/feed/Feed';
 import { Composer } from '@/components/feed/Composer';
 import { ProductMatrix } from '@/components/compare/ProductMatrix';
@@ -169,7 +169,8 @@ export function AppShell() {
         style={{ margin: '0.75rem 0 0.75rem 0.75rem', border: '1px solid var(--glass-border)' }}
       >
         <Brand lang={lang} />
-        <AreaSwitcher area={area} onChange={setArea} />
+        {/* AreaSwitcher moved into Live Circle's chip-filter bar as a
+            Location dropdown (Global / Near me / specific locations). */}
         <div className="mt-4 flex items-center justify-between gap-2">
           <LangSwitch />
           <ThemeToggle />
@@ -235,7 +236,6 @@ export function AppShell() {
         >
           <Brand compact lang={lang} />
           <div className="flex items-center gap-1.5">
-            {section === 'feed' && <AreaSwitcher area={area} onChange={setArea} compact />}
             <LangSwitch compact />
             <ThemeToggle compact />
             <button
@@ -270,7 +270,7 @@ export function AppShell() {
               </Card>
             </div>
           )}
-          {section === 'feed' && <Feed area={area} />}
+          {section === 'feed' && <Feed area={area} onAreaChange={setArea} />}
           {section === 'news' && <NewsHub />}
           {section === 'vault' && <Feed vault area={GLOBAL_AREA} />}
           {section === 'compare' && <ProductMatrix />}

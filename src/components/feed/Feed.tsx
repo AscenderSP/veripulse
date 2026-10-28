@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   Layers,
+  MapPin,
+  Globe2,
 } from 'lucide-react';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
 import type { Story, StoryTimelineNode, VoteAction } from '@/lib/types';
@@ -27,6 +29,8 @@ import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { isNewsExpired } from '@/lib/referenceImages';
 import type { Area } from '@/components/shell/AreaSwitcher';
+import { GLOBAL_AREA } from '@/components/shell/AreaSwitcher';
+import { getCurrentCoords } from '@/lib/nativeHardware';
 import { onRefresh } from '@/lib/refreshBus';
 import { SkeletonList, EmptyState } from '@/components/ui/Skeleton';
 
@@ -55,7 +59,15 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
   );
 }
 
-export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
+export function Feed({
+  vault = false,
+  area,
+  onAreaChange,
+}: {
+  vault?: boolean;
+  area: Area;
+  onAreaChange?: (a: Area) => void;
+}) {
   const { demo, profile } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
@@ -71,6 +83,9 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'feed' | 'map'>('feed');
   const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'hoaxes'>('all');
+  // Location chip can be "global", "near_me" (= hyperlocal in the Area
+  // state) or a specific location_name string.
+  const [locationName, setLocationName] = useState<string | null>(null);
   const [highlightedStoryId, setHighlightedStoryId] = useState<string | null>(null);
 
   const handleSelectIncidentStory = useCallback((story: Story) => {
@@ -219,6 +234,20 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
     return (data as StoryTimelineNode[]) ?? [];
   }
 
+  // Distinct locations represented in the current fetch, ranked by
+  // frequency. Powers the Location chip-dropdown.
+  const locationOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of stories) {
+      const name = (s.location_name ?? '').trim();
+      if (!name) continue;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [stories]);
+
   // Apply the status chip-dropdown filter. "Verified" = any story whose
   // consensus has resolved to the public rollout stage. "Hoaxes" =
   // quarantined (admin takedowns, consensus hoax).
@@ -232,15 +261,30 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
   }, [stories]);
 
   const visibleStories = useMemo(() => {
-    if (vault) return stories;
-    if (statusFilter === 'verified') return stories.filter((s) => s.rollout_stage === 'public');
-    if (statusFilter === 'hoaxes') {
-      return stories.filter(
-        (s) => s.rollout_stage === 'quarantined' || s.admin_taken_down,
-      );
-    }
-    return stories;
-  }, [stories, statusFilter, vault]);
+    let list = stories;
+    if (!vault && statusFilter === 'verified')
+      list = list.filter((s) => s.rollout_stage === 'public');
+    else if (!vault && statusFilter === 'hoaxes')
+      list = list.filter((s) => s.rollout_stage === 'quarantined' || s.admin_taken_down);
+    if (locationName) list = list.filter((s) => (s.location_name ?? '') === locationName);
+    return list;
+  }, [stories, statusFilter, locationName, vault]);
+
+  const nearMe = area.scope === 'hyperlocal';
+  async function pickNearMe() {
+    const c = await getCurrentCoords();
+    if (!c) return;
+    setLocationName(null);
+    onAreaChange?.({ scope: 'hyperlocal', lat: c.lat, lng: c.lng });
+  }
+  function pickGlobal() {
+    setLocationName(null);
+    onAreaChange?.(GLOBAL_AREA);
+  }
+  function pickLocation(name: string) {
+    setLocationName(name);
+    onAreaChange?.(GLOBAL_AREA);
+  }
 
   return (
     <div className="space-y-4">
@@ -256,6 +300,12 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
           counts={statusCounts}
           isRefreshing={isRefreshing}
           lang={lang}
+          nearMe={nearMe}
+          locationName={locationName}
+          locationOptions={locationOptions}
+          onPickGlobal={pickGlobal}
+          onPickNearMe={pickNearMe}
+          onPickLocation={pickLocation}
         />
       )}
 
@@ -303,7 +353,8 @@ export function Feed({ vault = false, area }: { vault?: boolean; area: Area }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Feed chip-bar — matches NewsHub / ProductHub floating-pill chrome.
-// Chips: View (feed / map), Status (All, Verified, Hoaxes).
+// Left slot: Live Circle ↔ Incident Heatmap TOGGLE (two-state segmented).
+// Chips (dropdowns): Status (All / Verified / Hoaxes), Location.
 // ────────────────────────────────────────────────────────────────────────────
 
 type FeedView = 'feed' | 'map';
@@ -317,6 +368,12 @@ function FeedChipBar({
   counts,
   isRefreshing,
   lang,
+  nearMe,
+  locationName,
+  locationOptions,
+  onPickGlobal,
+  onPickNearMe,
+  onPickLocation,
 }: {
   viewMode: FeedView;
   setViewMode: (v: FeedView) => void;
@@ -325,8 +382,14 @@ function FeedChipBar({
   counts: { all: number; verified: number; hoaxes: number };
   isRefreshing: boolean;
   lang: 'en' | 'bn' | 'hi';
+  nearMe: boolean;
+  locationName: string | null;
+  locationOptions: { name: string; count: number }[];
+  onPickGlobal: () => void;
+  onPickNearMe: () => void | Promise<void>;
+  onPickLocation: (name: string) => void;
 }) {
-  const [openMenu, setOpenMenu] = useState<null | 'view' | 'status'>(null);
+  const [openMenu, setOpenMenu] = useState<null | 'status' | 'location'>(null);
 
   const statusLabel =
     statusFilter === 'verified'
@@ -334,8 +397,12 @@ function FeedChipBar({
       : statusFilter === 'hoaxes'
         ? `Hoaxes · ${counts.hoaxes}`
         : `All · ${counts.all}`;
-  const viewLabel =
-    viewMode === 'map' ? t('incidentHeatmap', lang) : t('liveCircleFeed', lang);
+
+  const locationChipLabel = locationName
+    ? locationName
+    : nearMe
+      ? '10 km · Near me'
+      : 'Global';
 
   return (
     <div
@@ -343,13 +410,22 @@ function FeedChipBar({
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
     >
       <div className="mx-3 flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
-        <FeedChip
-          icon={viewMode === 'map' ? <MapIcon size={13} /> : <List size={13} />}
-          label={viewLabel}
-          active={viewMode === 'map'}
-          open={openMenu === 'view'}
-          onClick={() => setOpenMenu(openMenu === 'view' ? null : 'view')}
-        />
+        {/* Live Circle ↔ Incident Heatmap TOGGLE (segmented) */}
+        <div className="flex shrink-0 items-center rounded-full border border-[var(--border-subtle)] bg-bg-surface p-0.5">
+          <ToggleSeg
+            active={viewMode === 'feed'}
+            onClick={() => setViewMode('feed')}
+            icon={<List size={13} />}
+            label={t('liveCircleFeed', lang)}
+          />
+          <ToggleSeg
+            active={viewMode === 'map'}
+            onClick={() => setViewMode('map')}
+            icon={<MapIcon size={13} />}
+            label={t('incidentHeatmap', lang)}
+          />
+        </div>
+
         <FeedChip
           icon={<Layers size={13} />}
           label={statusLabel}
@@ -357,6 +433,15 @@ function FeedChipBar({
           open={openMenu === 'status'}
           onClick={() => setOpenMenu(openMenu === 'status' ? null : 'status')}
         />
+
+        <FeedChip
+          icon={nearMe ? <MapPin size={13} /> : <Globe2 size={13} />}
+          label={locationChipLabel}
+          active={nearMe || locationName !== null}
+          open={openMenu === 'location'}
+          onClick={() => setOpenMenu(openMenu === 'location' ? null : 'location')}
+        />
+
         {isRefreshing && (
           <span className="ml-auto flex shrink-0 items-center gap-1 pr-2 text-[11px] font-mono text-content-muted">
             <RefreshCw size={11} className="animate-spin text-brand-emerald" />
@@ -364,29 +449,6 @@ function FeedChipBar({
           </span>
         )}
       </div>
-
-      {openMenu === 'view' && (
-        <FeedDropdown onClose={() => setOpenMenu(null)}>
-          <FeedRow
-            icon={<List size={13} />}
-            label={t('liveCircleFeed', lang)}
-            selected={viewMode === 'feed'}
-            onClick={() => {
-              setViewMode('feed');
-              setOpenMenu(null);
-            }}
-          />
-          <FeedRow
-            icon={<MapIcon size={13} />}
-            label={t('incidentHeatmap', lang)}
-            selected={viewMode === 'map'}
-            onClick={() => {
-              setViewMode('map');
-              setOpenMenu(null);
-            }}
-          />
-        </FeedDropdown>
-      )}
 
       {openMenu === 'status' && (
         <FeedDropdown onClose={() => setOpenMenu(null)}>
@@ -419,7 +481,75 @@ function FeedChipBar({
           />
         </FeedDropdown>
       )}
+
+      {openMenu === 'location' && (
+        <FeedDropdown onClose={() => setOpenMenu(null)}>
+          <FeedRow
+            icon={<Globe2 size={13} />}
+            label="Global · All regions"
+            selected={!nearMe && locationName === null}
+            onClick={() => {
+              onPickGlobal();
+              setOpenMenu(null);
+            }}
+          />
+          <FeedRow
+            icon={<MapPin size={13} />}
+            label="10 km · Near me"
+            selected={nearMe && locationName === null}
+            onClick={() => {
+              void onPickNearMe();
+              setOpenMenu(null);
+            }}
+          />
+          {locationOptions.length > 0 && (
+            <div className="mt-1 border-t border-[var(--border-subtle)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-content-muted">
+              Specific locations
+            </div>
+          )}
+          {locationOptions.map((loc) => (
+            <FeedRow
+              key={loc.name}
+              icon={<MapPin size={13} />}
+              label={`${loc.name} · ${loc.count}`}
+              selected={locationName === loc.name}
+              onClick={() => {
+                onPickLocation(loc.name);
+                setOpenMenu(null);
+              }}
+            />
+          ))}
+        </FeedDropdown>
+      )}
     </div>
+  );
+}
+
+function ToggleSeg({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all',
+        active
+          ? 'bg-brand-emerald text-[#04110b] shadow-sm'
+          : 'text-content-secondary hover:text-content-primary',
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
 
