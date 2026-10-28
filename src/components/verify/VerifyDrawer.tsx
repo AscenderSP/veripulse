@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
+import { useBackClose } from '@/hooks/useBackClose';
 
 type Step = 'idle' | 'scanning' | 'ocr' | 'vahan' | 'done' | 'error';
 
@@ -23,6 +24,7 @@ export function VerifyDrawer({ open, onClose }: { open: boolean; onClose: () => 
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { demo, user, setAuthOpen, refreshProfile } = useSession();
+  useBackClose(open, onClose);
 
   async function run() {
     if (!demo && !user) {

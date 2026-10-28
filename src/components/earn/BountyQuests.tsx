@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { BOUNTY_SIGNAL_KEY } from '@/components/shell/PostFab';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
+import { useBackClose } from '@/hooks/useBackClose';
 import {
   Target,
   IndianRupee,
@@ -51,6 +52,10 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
   const [showCreatePage, setShowCreatePage] = useState(false);
   const [selectedBounty, setSelectedBounty] = useState<BountyQuest | null>(null);
   const [claimingSuccessId, setClaimingSuccessId] = useState<string | null>(null);
+
+  // Native back / swipe-back closes the composer or the detail view.
+  useBackClose(showCreatePage, () => setShowCreatePage(false));
+  useBackClose(selectedBounty !== null, () => setSelectedBounty(null));
 
   // Open the composer when the floating + FAB sets the signal (user tapped
   // "Post a Bounty" from any screen). Consume + ignore if already open.

@@ -27,6 +27,7 @@ import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils
 import { triggerTapHaptic, triggerSuccessHaptic } from '@/lib/nativeHardware';
 import { PullToRefreshIndicator } from './PullToRefreshIndicator';
 import { CaptchaMount } from '@/components/ui/CaptchaChallenge';
+import { useBackClose } from '@/hooks/useBackClose';
 import { emitRefresh } from '@/lib/refreshBus';
 import Image from 'next/image';
 import { LangSwitch } from './LangSwitch';
@@ -145,6 +146,16 @@ export function AppShell() {
       window.localStorage.setItem(SECTION_STORAGE_KEY, section);
     } catch {}
   }, [section]);
+
+  // Native back / swipe-back closes the mobile pulse drawer and backs out
+  // of the Compose section (which behaves as a drill-down modal, not a
+  // persistent section). Everything else — Feed, News, Product, Earn,
+  // Profile, Wallet — stays put because they are top-level routes the
+  // user navigates between, not overlays.
+  useBackClose(pulseOpen, () => setPulseOpen(false));
+  useBackClose(section === 'compose', () =>
+    switchSection(prevSection === 'compose' ? 'feed' : prevSection),
+  );
 
   useEffect(() => {
     showAnchoredBanner().catch(() => undefined);

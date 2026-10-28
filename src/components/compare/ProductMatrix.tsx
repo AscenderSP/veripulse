@@ -64,6 +64,7 @@ import { AICopilot } from '@/components/product/AICopilot';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
 import { onRefresh } from '@/lib/refreshBus';
+import { useBackClose } from '@/hooks/useBackClose';
 
 /** Hero image for a product card. Uses the submitted `imageUrl` if present,
  *  otherwise fetches a related image from Wikipedia using the product name as
@@ -231,6 +232,12 @@ export function ProductMatrix() {
 
   // Detail modal
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+
+  // Native back / swipe-back closes drill-downs. Each overlay registers
+  // its own entry; the stack unwinds in reverse open order.
+  useBackClose(reviewProduct !== null, () => setReviewProduct(null));
+  useBackClose(detailProduct !== null, () => setDetailProduct(null));
+  useBackClose(isCompareModalOpen, () => setIsCompareModalOpen(false));
 
   // Sub-features inside Product Hub
   const [hubTab, setHubTab] = useState<'browse' | 'battles' | 'copilot' | 'decay' | 'ask_owner' | 'service_radar'>('browse');

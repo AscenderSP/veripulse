@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldCheck, X, RefreshCw } from 'lucide-react';
 import { setCaptchaListener, type CaptchaResolver } from '@/lib/captchaBus';
+import { useBackClose } from '@/hooks/useBackClose';
 
 interface Puzzle {
   question: string;
@@ -103,6 +104,9 @@ export function CaptchaMount() {
     resolverRef.current = null;
     r?.({ ok, token: ok ? token ?? undefined : undefined, answer: ok ? input : undefined });
   }, [input, token]);
+
+  // Native back / swipe-back cancels the challenge.
+  useBackClose(open, () => resolve(false));
 
   function submit() {
     if (honeypot.trim().length > 0) {

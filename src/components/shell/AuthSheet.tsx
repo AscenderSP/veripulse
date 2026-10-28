@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/primitives';
 import { useSession } from '@/hooks/useSession';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
+import { useBackClose } from '@/hooks/useBackClose';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
 import type { AccountType } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,7 @@ export function AuthSheet() {
     requestJournalistVerification,
   } = useSession();
   const { requireHuman } = useCaptchaGate();
+  useBackClose(authOpen, () => setAuthOpen(false));
 
   const [mode, setMode] = useState<Mode>('signin');
   // sign-in state

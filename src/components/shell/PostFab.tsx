@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, X, PenSquare, Radio, Newspaper, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerTapHaptic } from '@/lib/nativeHardware';
+import { useBackClose } from '@/hooks/useBackClose';
 
 export const DISPATCH_SIGNAL_KEY = 'veripulse_open_news_dispatch_v1';
 
@@ -33,6 +34,7 @@ interface PostFabProps {
 export function PostFab({ onAction, openSignal, onConsumeSignal }: PostFabProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  useBackClose(open, () => setOpen(false));
 
   // External open signal (used by the mobile nav + button).
   useEffect(() => {

@@ -57,6 +57,7 @@ import { useListboxKeys } from '@/hooks/useListboxKeys';
 import { onRefresh } from '@/lib/refreshBus';
 import { EmptyState } from '@/components/ui/Skeleton';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
+import { useBackClose } from '@/hooks/useBackClose';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 /** Image for an article card. Verified photo wins; otherwise a subject-related
@@ -256,6 +257,12 @@ export function NewsHub() {
 
   // Modals for posting news
   const [fileDispatchOpen, setFileDispatchOpen] = useState(false);
+
+  // Native back / swipe-back closes drill-down views instead of leaving
+  // the app. Order matters: the deepest overlay registers first and
+  // consumes the back action.
+  useBackClose(drillDownArticle !== null, () => setDrillDownArticle(null));
+  useBackClose(fileDispatchOpen, () => setFileDispatchOpen(false));
   const [pressPassModalOpen, setPressPassModalOpen] = useState(false);
   const [bannerNotice, setBannerNotice] = useState<{ title: string; desc: string; type: 'success' | 'merge' | 'buffer' } | null>(null);
 
