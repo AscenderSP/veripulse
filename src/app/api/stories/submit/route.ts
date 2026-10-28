@@ -3,6 +3,8 @@ import { getRequestUser, createSupabaseAdminClient } from '@/lib/supabase/server
 import { analyzeStory, embedText } from '@/lib/gemini';
 import { getReferenceImage } from '@/lib/referenceImages';
 import { checkPostLimit } from '@/lib/admin';
+import { verifyCaptchaToken } from '@/lib/captchaVerify';
+import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,7 +49,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const text: string = (body.text ?? '').toString().trim();
+    // Captcha gate — enforced when CAPTCHA_SECRET is set.
+    const captcha = verifyCaptchaToken(body.captcha_token);
+    if (!captcha.ok && process.env.CAPTCHA_SECRET) {
+      return NextResponse.json({ error: 'CAPTCHA_REQUIRED' }, { status: 400 });
+    }
+    const text: string = sanitizeUserText(body.text, 2000);
     if (text.length < 20) {
       return NextResponse.json({ error: 'REPORT_TOO_SHORT' }, { status: 400 });
     }

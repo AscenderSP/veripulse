@@ -26,6 +26,7 @@ import {
 import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
 import { triggerTapHaptic, triggerSuccessHaptic } from '@/lib/nativeHardware';
 import { PullToRefreshIndicator } from './PullToRefreshIndicator';
+import { CaptchaMount } from '@/components/ui/CaptchaChallenge';
 import { emitRefresh } from '@/lib/refreshBus';
 import Image from 'next/image';
 import { LangSwitch } from './LangSwitch';
@@ -332,6 +333,7 @@ export function AppShell() {
       <VerifyDrawer open={verifyOpen} onClose={() => setVerifyOpen(false)} />
       <AuthSheet />
       <ReviewPrompt />
+      <CaptchaMount />
       <PulseDrawer
         open={pulseOpen}
         onClose={() => setPulseOpen(false)}

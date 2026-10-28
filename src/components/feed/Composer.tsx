@@ -8,6 +8,7 @@ import { isSupabaseConfigured } from '@/lib/demoData';
 import { apiFetch } from '@/lib/api';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
+import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 
@@ -32,6 +33,7 @@ export function Composer({
   const { user } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
+  const { requireHuman } = useCaptchaGate();
   const [text, setText] = useState('');
   const [place, setPlace] = useState('');
   const [media, setMedia] = useState<VerifiedMedia | null>(null);
@@ -68,6 +70,11 @@ export function Composer({
       setMsg('Add a bit more detail before posting.');
       return;
     }
+    const captcha = await requireHuman({ reason: 'Confirm you are human to publish this report.' });
+    if (!captcha.ok) {
+      setMsg('Captcha not completed.');
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -88,6 +95,7 @@ export function Composer({
               media_url: mediaUrl,
               media_type: 'image',
               captured_at: media?.capturedAt ?? null,
+              captcha_token: captcha.token,
             }),
           });
         });

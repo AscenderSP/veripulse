@@ -56,6 +56,7 @@ import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
 import { onRefresh } from '@/lib/refreshBus';
 import { EmptyState } from '@/components/ui/Skeleton';
+import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 /** Image for an article card. Verified photo wins; otherwise a subject-related
@@ -1540,10 +1541,19 @@ function FileDispatchPage({
   const [mediaUrl, setMediaUrl] = useState('');
 
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  const { requireHuman } = useCaptchaGate();
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !text.trim()) return;
+
+    const captcha = await requireHuman({ reason: 'Confirm you are human to file this dispatch.' });
+    if (!captcha.ok) {
+      setCaptchaError('Captcha not completed.');
+      return;
+    }
+    setCaptchaError(null);
 
     const tags = tagInput
       .split(',')
@@ -1690,6 +1700,11 @@ function FileDispatchPage({
             </ul>
           </div>
 
+          {captchaError && (
+            <div className="rounded-button border border-brand-rose/40 bg-brand-rose/10 px-3 py-2 text-[11px] font-semibold text-brand-rose">
+              {captchaError}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
             <Button variant="ghost" type="button" onClick={onBack} className="px-3 py-1.5 text-xs">
               Cancel

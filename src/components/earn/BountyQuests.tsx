@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { BOUNTY_SIGNAL_KEY } from '@/components/shell/PostFab';
+import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import {
   Target,
   IndianRupee,
@@ -873,10 +874,20 @@ function CreateBountyPage({
   const [location, setLocation] = useState('Kolkata, WB');
   const [type, setType] = useState<BountyType>('news_verification');
   const [proofRequired, setProofRequired] = useState('C2PA-verified camera photo or verified telemetry screenshot');
+  const { requireHuman } = useCaptchaGate();
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !desc.trim()) return;
+    const captcha = await requireHuman({
+      reason: 'Confirm you are human before locking escrow and posting this bounty.',
+    });
+    if (!captcha.ok) {
+      setCaptchaError('Captcha not completed.');
+      return;
+    }
+    setCaptchaError(null);
     onSubmit({
       title: title.trim(),
       description: desc.trim(),
@@ -1029,6 +1040,12 @@ function CreateBountyPage({
               ))}
             </div>
           </div>
+
+          {captchaError && (
+            <div className="rounded-button border border-brand-rose/40 bg-brand-rose/10 px-3 py-2 text-[11px] font-semibold text-brand-rose">
+              {captchaError}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border-subtle)]">
             <Button variant="ghost" type="button" onClick={onBack} className="text-xs px-3 py-1.5">

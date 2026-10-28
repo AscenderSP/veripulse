@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/supabase/server';
 import type { VoteAction } from '@/lib/types';
+import { verifyCaptchaToken } from '@/lib/captchaVerify';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,13 @@ export async function POST(req: NextRequest) {
     const vote: VoteAction = body.vote;
     if (!storyId || !VALID.includes(vote)) {
       return NextResponse.json({ error: 'BAD_PARAMS' }, { status: 400 });
+    }
+    // Captcha gate — enforced only when CAPTCHA_SECRET is set. The browser
+    // ships a token once per batch; absence is treated as a fresh batch
+    // and still accepted when no secret is configured (demo mode).
+    const captcha = verifyCaptchaToken(body.captcha_token);
+    if (!captcha.ok && process.env.CAPTCHA_SECRET) {
+      return NextResponse.json({ error: 'CAPTCHA_REQUIRED' }, { status: 400 });
     }
 
     const { data, error } = await supabase.rpc('cast_weighted_vote', {

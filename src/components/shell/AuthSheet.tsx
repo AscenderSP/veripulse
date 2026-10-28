@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives';
 import { useSession } from '@/hooks/useSession';
+import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
 import type { AccountType } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ export function AuthSheet() {
     signUp,
     requestJournalistVerification,
   } = useSession();
+  const { requireHuman } = useCaptchaGate();
 
   const [mode, setMode] = useState<Mode>('signin');
   // sign-in state
@@ -130,8 +132,18 @@ export function AuthSheet() {
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    // Account creation always requires a captcha — this is the one surface
+    // we never give a free pass on, regardless of the batch counter.
+    const captcha = await requireHuman({
+      always: true,
+      reason: 'Verify you are human to finish creating your account.',
+    });
+    if (!captcha.ok) {
+      setError('Captcha not completed. Please try again.');
+      return;
+    }
+    setBusy(true);
     const r = await signUp({
       name,
       username: username || name.toLowerCase().replace(/\s+/g, '_'),

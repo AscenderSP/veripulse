@@ -15,6 +15,7 @@ import {
   Globe2,
 } from 'lucide-react';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
+import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import type { Story, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { StoryCard, type VoteOutcome } from './StoryCard';
 import { AdSlot } from './AdSlot';
@@ -71,6 +72,7 @@ export function Feed({
   const { demo, profile } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
+  const { requireHuman } = useCaptchaGate();
 
   const scope = vault ? 'vault' : area.scope;
   const cacheKey = `${scope}:${area.lat ?? ''}:${area.lng ?? ''}`;
@@ -182,12 +184,16 @@ export function Feed({
   }, [scope, vault, load, cacheKey]);
 
   async function handleVote(story: Story, vote: VoteAction): Promise<VoteOutcome> {
+    const captcha = await requireHuman({ reason: 'Confirm you are human before casting a consensus vote.' });
+    if (!captcha.ok) {
+      return { error: 'Captcha not completed.' };
+    }
     if (demo) return demoVote(story, vote);
     const res = await requireAuth(() =>
       apiFetch('/api/votes/cast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ story_id: story.id, vote }),
+        body: JSON.stringify({ story_id: story.id, vote, captcha_token: captcha.token }),
       }),
     );
     if (!res || !res.ok) {
