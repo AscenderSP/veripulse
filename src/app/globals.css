@@ -744,3 +744,46 @@ select:focus {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOADING SKELETONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes vp-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.vp-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 0%,
+    var(--bg-elevated) 50%,
+    var(--bg-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: vp-skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDUCED-MOTION
+   For users with `prefers-reduced-motion: reduce`, suppress non-essential
+   loops (spinners' outer glow, pulse dots, shimmer, slide-in) so the UI
+   stops moving. Transition durations are collapsed to a flash.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pulse-dot,
+  .vp-skeleton,
+  .animate-slide-in-right {
+    animation: none !important;
+  }
+}

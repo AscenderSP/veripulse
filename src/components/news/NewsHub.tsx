@@ -53,6 +53,7 @@ import {
 import { t } from '@/lib/translations';
 import { getReferenceImage, isNewsExpired, isStockImage, NEWS_EXPIRY_HOURS } from '@/lib/referenceImages';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
+import { useListboxKeys } from '@/hooks/useListboxKeys';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 /** Image for an article card. Verified photo wins; otherwise a subject-related
@@ -1172,10 +1173,10 @@ function StickyFilterBar({
 
   return (
     <div
-      className="sticky z-20 -mx-4 border-b border-[var(--border-subtle)] bg-bg-primary backdrop-blur-md lg:!top-0"
+      className="sticky z-20 -mx-4 bg-bg-primary pb-2 pt-1 lg:!top-0"
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
     >
-      <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar">
+      <div className="mx-3 flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
         <FilterChip
           active={selectedCategory !== 'all'}
           icon={
@@ -1439,19 +1440,13 @@ function DropdownPanel({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { onKeyDown } = useListboxKeys({ open: true, containerRef: ref, onClose });
   useEffect(() => {
     function h(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
-    function esc(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
     document.addEventListener('mousedown', h);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', h);
-      document.removeEventListener('keydown', esc);
-    };
+    return () => document.removeEventListener('mousedown', h);
   }, [onClose]);
   return (
     <div className="px-4 pb-3">
@@ -1459,6 +1454,7 @@ function DropdownPanel({
         ref={ref}
         role="listbox"
         tabIndex={-1}
+        onKeyDown={onKeyDown}
         className="animate-fade-in max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border-strong)] bg-bg-elevated p-1.5 shadow-2xl backdrop-blur-xl"
       >
         {children}
@@ -1487,6 +1483,9 @@ function DropdownRow({
       onClick={onClick}
       role="option"
       aria-selected={selected}
+      tabIndex={0}
+      data-listbox-option
+      data-active={selected ? 'true' : undefined}
       className={cn(
         'flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors',
         selected

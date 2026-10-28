@@ -62,6 +62,7 @@ import { AskOwner } from '@/components/product/AskOwner';
 import { ServiceRadar } from '@/components/product/ServiceRadar';
 import { AICopilot } from '@/components/product/AICopilot';
 import { useRelatedImage } from '@/hooks/useRelatedImage';
+import { useListboxKeys } from '@/hooks/useListboxKeys';
 
 /** Hero image for a product card. Uses the submitted `imageUrl` if present,
  *  otherwise fetches a related image from Wikipedia using the product name as
@@ -3764,19 +3765,13 @@ function PFChip({
 
 function PFDropdown({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { onKeyDown } = useListboxKeys({ open: true, containerRef: ref, onClose });
   useEffect(() => {
     function h(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
-    function esc(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
     document.addEventListener('mousedown', h);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', h);
-      document.removeEventListener('keydown', esc);
-    };
+    return () => document.removeEventListener('mousedown', h);
   }, [onClose]);
   return (
     <div className="px-4 pb-3">
@@ -3784,6 +3779,7 @@ function PFDropdown({ children, onClose }: { children: React.ReactNode; onClose:
         ref={ref}
         role="listbox"
         tabIndex={-1}
+        onKeyDown={onKeyDown}
         className="animate-fade-in max-h-80 overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border-strong)] bg-bg-elevated p-1.5 shadow-2xl backdrop-blur-xl"
       >
         {children}
@@ -3808,6 +3804,9 @@ function PFRow({
       onClick={onClick}
       role="option"
       aria-selected={selected}
+      tabIndex={0}
+      data-listbox-option
+      data-active={selected ? 'true' : undefined}
       className={cn(
         'flex w-full items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors',
         selected

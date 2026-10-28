@@ -195,14 +195,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async signInWithEmail(email) {
       const trimmed = email.trim().toLowerCase();
-      // Magic admin email — short-circuits Supabase in BOTH modes so devs can
-      // hit the admin console locally without seeding a real Supabase user.
-      // A profile with is_admin: true lets the client gate open; API calls
-      // against a live backend still require a real admin user, so the admin
-      // page itself falls back to a local-preview banner.
-      if (trimmed === DEMO_ADMIN_EMAIL) {
+      // Magic admin email — short-circuits Supabase so devs can hit the admin
+      // console locally without seeding a real user. Gated: only when the
+      // build is in demo mode OR explicitly opted-in via
+      // NEXT_PUBLIC_ALLOW_DEMO_ADMIN. Production (where neither is set) must
+      // never accept this bypass — API calls still require a real admin.
+      const allowDemoAdmin =
+        demo || process.env.NEXT_PUBLIC_ALLOW_DEMO_ADMIN === '1';
+      if (trimmed === DEMO_ADMIN_EMAIL && allowDemoAdmin) {
         persistProfile({ ...DEMO_ADMIN_PROFILE });
         return {};
+      }
+      if (trimmed === DEMO_ADMIN_EMAIL) {
+        return { error: 'Demo admin is disabled on this build.' };
       }
       if (demo) {
         // Normal demo sign in — never inherits admin.

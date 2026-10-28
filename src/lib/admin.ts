@@ -8,6 +8,12 @@ import { NextResponse } from 'next/server';
 import { ACCOUNT_TYPES } from './accountTiers';
 import type { AccountType, JournalistVerificationStatus, SubscriptionTier } from './types';
 import { createSupabaseAdminClient, getRequestUser } from './supabase/server';
+import { rateLimit, rateLimitKey, reapRateLimits } from './rateLimit';
+
+// Per-admin rate limit on /api/admin/* — 120 req / minute. Prevents a
+// compromised admin token from being used to script-sweep the dashboard.
+const ADMIN_RATE_LIMIT = 120;
+const ADMIN_RATE_WINDOW_MS = 60_000;
 
 export interface AdminCheckResult {
   isAdmin: boolean;
@@ -50,6 +56,26 @@ export async function requireAdmin() {
   if (!result.isAdmin) {
     return { error: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 }) };
   }
+
+  // Opportunistic bucket reap (every ~100 req).
+  if (Math.random() < 0.01) reapRateLimits(ADMIN_RATE_WINDOW_MS);
+
+  const decision = rateLimit(
+    rateLimitKey(user.id, 'admin'),
+    ADMIN_RATE_LIMIT,
+    ADMIN_RATE_WINDOW_MS,
+  );
+  if (!decision.allowed) {
+    const res = NextResponse.json(
+      { error: 'RATE_LIMITED', retryAfterMs: decision.resetMs },
+      { status: 429 },
+    );
+    res.headers.set('Retry-After', String(Math.ceil(decision.resetMs / 1000)));
+    res.headers.set('X-RateLimit-Limit', String(decision.limit));
+    res.headers.set('X-RateLimit-Remaining', '0');
+    return { error: res };
+  }
+
   return { admin: createSupabaseAdminClient(), adminUser: user };
 }
 

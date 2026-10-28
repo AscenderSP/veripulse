@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
+import { writeAudit } from '@/lib/auditLog';
+import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,18 +67,16 @@ export async function PATCH(req: NextRequest) {
 
   if (action === 'suspend') {
     const days = Number(body.days) > 0 ? Number(body.days) : 7;
+    const cleanReason = sanitizeUserText(body.reason, 500) || 'Policy violation';
     patch = {
       is_suspended: true,
       suspended_until: new Date(Date.now() + days * 86400_000).toISOString(),
-      suspension_reason:
-        typeof body.reason === 'string' ? body.reason.slice(0, 500) : 'Policy violation',
+      suspension_reason: cleanReason,
     };
     notification = {
       type: 'suspension',
       title: `Your account has been suspended for ${days} day${days === 1 ? '' : 's'}`,
-      body:
-        (typeof body.reason === 'string' ? body.reason : 'Policy violation') +
-        ' — You can appeal through support.',
+      body: `${cleanReason} — You can appeal through support.`,
     };
   } else if (action === 'unsuspend') {
     patch = { is_suspended: false, suspended_until: null, suspension_reason: null };
@@ -104,6 +104,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'UNKNOWN_ACTION' }, { status: 400 });
   }
 
+  // Snapshot the fields we're about to overwrite so the audit log can
+  // show the before→after.
+  const beforeFields = Object.keys(patch);
+  const { data: before } = await g.admin
+    .from('profiles')
+    .select(beforeFields.join(','))
+    .eq('id', userId)
+    .single();
+
   const { error } = await g.admin.from('profiles').update(patch).eq('id', userId);
   if (error) {
     return NextResponse.json({ error: 'UPDATE_FAILED', detail: error.message }, { status: 500 });
@@ -116,5 +125,15 @@ export async function PATCH(req: NextRequest) {
       /* non-fatal */
     }
   }
+
+  await writeAudit(g.admin, g.adminUser, {
+    action,
+    target_table: 'profiles',
+    target_id: userId,
+    reason: sanitizeUserText(body.reason, 500) || null,
+    before_data: before ?? null,
+    after_data: patch,
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,7 @@ import './globals.css';
 import { LangProvider } from '@/hooks/useLang';
 import { SessionProvider } from '@/hooks/useSession';
 import { ThemeProvider } from '@/hooks/useTheme';
+import { GlobalErrorBoundary } from '@/components/shell/GlobalErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'VeriPulse — Verified News & Owner Intelligence',
@@ -32,11 +33,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider>
-          <LangProvider>
-            <SessionProvider>{children}</SessionProvider>
-          </LangProvider>
-        </ThemeProvider>
+        <GlobalErrorBoundary>
+          <ThemeProvider>
+            <LangProvider>
+              <SessionProvider>{children}</SessionProvider>
+            </LangProvider>
+          </ThemeProvider>
+        </GlobalErrorBoundary>
       </body>
     </html>
   );

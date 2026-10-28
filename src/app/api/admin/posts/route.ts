@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
+import { writeAudit } from '@/lib/auditLog';
+import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,12 +53,20 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'BAD_REQUEST' }, { status: 400 });
   }
 
+  // Snapshot current state for the audit log before mutating.
+  const { data: before } = await g.admin
+    .from('stories')
+    .select('admin_taken_down, rollout_stage, takedown_reason, taken_down_at, taken_down_by')
+    .eq('id', storyId)
+    .single();
+
+  const reason = sanitizeUserText(body.reason, 500) || 'Admin takedown';
   const patch =
     action === 'takedown'
       ? {
           admin_taken_down: true,
           rollout_stage: 'quarantined' as const,
-          takedown_reason: typeof body.reason === 'string' ? body.reason.slice(0, 500) : 'Admin takedown',
+          takedown_reason: reason,
           taken_down_at: new Date().toISOString(),
           taken_down_by: g.adminUser.id,
         }
@@ -72,5 +82,15 @@ export async function PATCH(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'UPDATE_FAILED', detail: error.message }, { status: 500 });
   }
+
+  await writeAudit(g.admin, g.adminUser, {
+    action,
+    target_table: 'stories',
+    target_id: storyId,
+    reason: action === 'takedown' ? reason : null,
+    before_data: before ?? null,
+    after_data: patch,
+  });
+
   return NextResponse.json({ ok: true });
 }
