@@ -7,7 +7,6 @@ import {
   LayoutGrid,
   Gauge,
   Wallet as WalletIcon,
-  Plus,
   X,
   LogIn,
   LogOut,
@@ -303,9 +302,6 @@ export function AppShell() {
       <MobileNav
         section={section}
         setSection={switchSection}
-        onPost={() => setFabSignal(true)}
-        vaultCount={vaultCount}
-        balance={profile?.wallet_balance_inr ?? null}
         lang={lang}
       />
 
@@ -534,16 +530,10 @@ function SectionTitle({ section, lang = 'en' }: { section: Section; lang?: impor
 function MobileNav({
   section,
   setSection,
-  onPost,
-  vaultCount,
-  balance,
   lang = 'en',
 }: {
   section: Section;
   setSection: (s: Section) => void;
-  onPost: () => void;
-  vaultCount: number;
-  balance: number | null;
   lang?: import('@/lib/types').Lang;
 }) {
   return (
@@ -555,19 +545,13 @@ function MobileNav({
         borderRadius: '20px 20px 0 0',
       }}
     >
+      {/* Post / Dispatch is reachable from the floating + FAB at the
+          bottom-right, so the bottom nav drops its own duplicate + and
+          uses the freed space for the main sections. */}
       <TabButton active={section === 'feed'} onClick={() => setSection('feed')} icon={<Radio size={20} />} label={t('tab_circle', lang)} color="var(--brand-emerald)" pulse />
       <TabButton active={section === 'news'} onClick={() => setSection('news')} icon={<Newspaper size={20} />} label={t('tab_news', lang)} color="var(--brand-sky)" />
-      <button
-        onClick={async () => {
-          await triggerTapHaptic();
-          onPost();
-        }}
-        aria-label="Post report"
-        className="post-glow -mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-brand-emerald text-[#04110b] press-effect"
-      >
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
       <TabButton active={section === 'compare'} onClick={() => setSection('compare')} icon={<LayoutGrid size={20} />} label={t('tab_product', lang)} color="var(--brand-violet)" />
+      <TabButton active={section === 'earn'} onClick={() => setSection('earn')} icon={<Target size={20} />} label={t('tab_bounties', lang)} color="var(--brand-amber)" />
       <TabButton
         active={section === 'profile'}
         onClick={() => setSection('profile')}

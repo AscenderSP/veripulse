@@ -113,8 +113,12 @@ body {
   scroll-behavior: smooth;
   color-scheme: dark;
   /* Lock horizontal scroll so a stray wide element can't push the fixed
-     mobile nav off-screen; vertical scroll stays as normal. */
-  overflow-x: hidden;
+     mobile nav off-screen; vertical scroll stays as normal. Use `clip`
+     instead of `hidden` — `overflow-x: hidden` implicitly makes
+     overflow-y a scroll container and that breaks `position: sticky` on
+     descendants in Safari/iOS. `clip` just clips without creating a
+     scroll container. */
+  overflow-x: clip;
   width: 100%;
   /* Keep OS font scaling from blowing up layouts. iOS respects this on
      orientation change via -webkit-text-size-adjust: 100%. */
