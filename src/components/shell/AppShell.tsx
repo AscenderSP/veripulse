@@ -19,6 +19,7 @@ import {
   User,
   Newspaper,
   Sparkles,
+  Film,
   ArrowLeft,
   Coins,
   Activity,
@@ -53,14 +54,15 @@ import { FactCheckScanner } from '@/components/feed/FactCheckScanner';
 import { OwnershipPassportView } from '@/components/earn/OwnershipPassport';
 import { ProfileView } from '@/components/profile/ProfileView';
 import { NewsHub } from '@/components/news/NewsHub';
+import { CinemaReviews } from '@/components/cinema/CinemaReviews';
 import { t, UI_STRINGS } from '@/lib/translations';
 
-type Section = 'feed' | 'news' | 'vault' | 'compare' | 'earn' | 'scanner' | 'passport' | 'sentinel' | 'wallet' | 'profile' | 'compose';
+type Section = 'feed' | 'news' | 'vault' | 'compare' | 'earn' | 'scanner' | 'passport' | 'sentinel' | 'wallet' | 'profile' | 'compose' | 'cinema';
 
 const SECTION_STORAGE_KEY = 'veripulse_active_section_v1';
 const VALID_SECTIONS: Section[] = [
   'feed', 'news', 'vault', 'compare', 'earn', 'scanner',
-  'passport', 'sentinel', 'wallet', 'profile', 'compose',
+  'passport', 'sentinel', 'wallet', 'profile', 'compose', 'cinema',
 ];
 
 function readPersistedSection(): Section {
@@ -77,6 +79,7 @@ const NAV: { id: Section; label: string; icon: React.ReactNode; color: string }[
   { id: 'news', label: 'News Hub', icon: <Newspaper size={18} />, color: 'var(--brand-sky)' },
   { id: 'compare', label: 'Product Hub', icon: <LayoutGrid size={18} />, color: 'var(--brand-violet)' },
   { id: 'earn', label: 'Bounties & Earn', icon: <Target size={18} />, color: 'var(--brand-amber)' },
+  { id: 'cinema', label: 'Cinema Sentinel', icon: <Film size={18} />, color: 'var(--brand-rose)' },
   { id: 'scanner', label: 'WhatsApp Shield', icon: <ShieldCheck size={18} />, color: 'var(--brand-cyan)' },
   { id: 'passport', label: 'Resale Passport', icon: <Award size={18} />, color: 'var(--brand-amber)' },
   { id: 'vault', label: 'Quarantine Vault', icon: <ShieldAlert size={18} />, color: 'var(--brand-rose)' },
@@ -287,6 +290,7 @@ export function AppShell() {
           {section === 'vault' && <Feed vault area={GLOBAL_AREA} />}
           {section === 'compare' && <ProductMatrix />}
           {section === 'earn' && <EarnHub onVerify={() => setVerifyOpen(true)} />}
+          {section === 'cinema' && <CinemaReviews />}
           {section === 'scanner' && <FactCheckScanner />}
           {section === 'passport' && <OwnershipPassportView />}
           {section === 'wallet' && <Wallet onVerify={() => setVerifyOpen(true)} />}

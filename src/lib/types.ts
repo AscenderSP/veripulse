@@ -681,3 +681,56 @@ export interface GeminiOcrResult {
   tamper_notes: string;
   ocr_confidence: number; // 0-100
 }
+
+// ─── Cinema Sentinel ────────────────────────────────────────────────────
+export interface Cinema {
+  id: string;
+  name: string;
+  chain: string;
+  city: string;
+  address?: string;
+  lat: number;
+  lng: number;
+}
+
+export interface Movie {
+  id: string;
+  title: string;
+  language: string;
+  duration_minutes: number;
+  interval_minutes?: number;
+  release_date: string;
+  poster_url: string;
+  critic_hype_score: number;         // 0-10 pre-release
+  crowd_reality_score: number | null; // avg of submitted reality_gap ratings
+}
+
+export type CineRatingKey = 'pacing' | 'theater' | 'acting' | 'rewatch' | 'reality_gap';
+export type CineReviewTier = 'fdfs' | 'day1' | 'standard';
+
+export interface MovieTicket {
+  id: string;
+  user_id: string;
+  movie_id: string;
+  cinema_id: string;
+  show_time: string;        // ISO
+  seat_no: string;
+  booking_id: string;
+  source: 'qr_bookmyshow' | 'ocr_photo' | 'manual';
+  verified_at: string;
+  consumed_at: string | null;
+}
+
+export interface MovieReview {
+  id: string;
+  movie_id: string;
+  user_id: string;
+  cinema_id: string;
+  overall_score: number;         // 1-10 avg
+  reality_gap: number;           // 1-10
+  verdict: string | null;        // null when spoiler + un-revealed
+  spoiler: boolean;
+  window_tier: CineReviewTier;
+  distance_meters: number;
+  created_at: string;
+}

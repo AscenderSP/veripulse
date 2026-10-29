@@ -6,6 +6,7 @@ import type {
   ReputationBadge, MilestoneGrant, SocialLinks, UserContact, NetworkUser,
   NewsCategory, NewsCategoryMeta, NewsArticle, ReporterDispatch,
   HeadToHeadBattle, BountyLeaderboardCycle, BountyLeaderboardUser,
+  Cinema, Movie, MovieReview,
 } from './types';
 
 /**
@@ -2851,3 +2852,114 @@ export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   return url.startsWith('https://') && !url.includes('YOUR-PROJECT');
 }
+
+// ─── Cinema Sentinel demo set ───────────────────────────────────────────
+export const DEMO_CINEMAS: Cinema[] = [
+  { id: 'pvr-south-city-kol', name: 'PVR South City',   chain: 'PVR',        city: 'Kolkata',   address: 'South City Mall, Prince Anwar Shah Rd', lat: 22.5017, lng: 88.3625 },
+  { id: 'inox-forum-kol',     name: 'INOX Forum',       chain: 'INOX',       city: 'Kolkata',   address: 'Forum Mall, Elgin Rd',                    lat: 22.5411, lng: 88.3528 },
+  { id: 'pvr-select-city-del', name: 'PVR Select Citywalk', chain: 'PVR',    city: 'Delhi',     address: 'Select Citywalk, Saket',                  lat: 28.5285, lng: 77.2199 },
+  { id: 'inox-nehru-place-del', name: 'INOX Nehru Place', chain: 'INOX',     city: 'Delhi',     address: 'Nehru Place',                              lat: 28.5484, lng: 77.2510 },
+  { id: 'cinepolis-fun-mumbai', name: 'Cinepolis Fun Republic', chain: 'Cinepolis', city: 'Mumbai', address: 'Fun Republic, Andheri West',            lat: 19.1368, lng: 72.8257 },
+];
+
+export const DEMO_MOVIES: Movie[] = [
+  {
+    id: 'laal-mahal-2026',
+    title: 'Laal Mahal',
+    language: 'hi',
+    duration_minutes: 148,
+    interval_minutes: 15,
+    release_date: '2026-10-27',
+    poster_url: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&q=80',
+    critic_hype_score: 8.1,
+    crowd_reality_score: 6.4,
+  },
+  {
+    id: 'river-of-ghosts',
+    title: 'River of Ghosts',
+    language: 'bn',
+    duration_minutes: 132,
+    interval_minutes: 15,
+    release_date: '2026-10-24',
+    poster_url: 'https://images.unsplash.com/photo-1518676590629-3dcba9c5a555?w=600&q=80',
+    critic_hype_score: 7.4,
+    crowd_reality_score: 7.9,
+  },
+  {
+    id: 'spartan-cipher',
+    title: 'Spartan Cipher',
+    language: 'en',
+    duration_minutes: 163,
+    interval_minutes: 15,
+    release_date: '2026-10-20',
+    poster_url: 'https://images.unsplash.com/photo-1518929458119-e5bf444c30f4?w=600&q=80',
+    critic_hype_score: 9.0,
+    crowd_reality_score: 5.8,
+  },
+  {
+    id: 'metro-blues',
+    title: 'Metro Blues',
+    language: 'hi',
+    duration_minutes: 118,
+    interval_minutes: 15,
+    release_date: '2026-10-10',
+    poster_url: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=600&q=80',
+    critic_hype_score: 6.2,
+    crowd_reality_score: 8.1,
+  },
+];
+
+export const DEMO_MOVIE_REVIEWS: MovieReview[] = [
+  {
+    id: 'rv-1',
+    movie_id: 'laal-mahal-2026',
+    user_id: 'user-demo-1',
+    cinema_id: 'pvr-south-city-kol',
+    overall_score: 7.2,
+    reality_gap: 6.5,
+    verdict: 'Interval hook lands, second half meanders. Dolby mix is the real star.',
+    spoiler: false,
+    window_tier: 'fdfs',
+    distance_meters: 142,
+    created_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  },
+  {
+    id: 'rv-2',
+    movie_id: 'laal-mahal-2026',
+    user_id: 'user-demo-2',
+    cinema_id: 'inox-forum-kol',
+    overall_score: 6.4,
+    reality_gap: 5.5,
+    verdict: 'Hyped as a thriller, played as a slow-burn drama. Lead performance saves it.',
+    spoiler: false,
+    window_tier: 'day1',
+    distance_meters: 311,
+    created_at: new Date(Date.now() - 6 * 3600_000).toISOString(),
+  },
+  {
+    id: 'rv-3',
+    movie_id: 'spartan-cipher',
+    user_id: 'user-demo-3',
+    cinema_id: 'pvr-select-city-del',
+    overall_score: 5.9,
+    reality_gap: 4.1,
+    verdict: 'Trailer promised a thinking-person’s heist. Got Fast & Furious with a laptop.',
+    spoiler: false,
+    window_tier: 'fdfs',
+    distance_meters: 88,
+    created_at: new Date(Date.now() - 20 * 3600_000).toISOString(),
+  },
+  {
+    id: 'rv-4',
+    movie_id: 'metro-blues',
+    user_id: 'user-demo-4',
+    cinema_id: 'cinepolis-fun-mumbai',
+    overall_score: 8.3,
+    reality_gap: 8.2,
+    verdict: 'No stars, no marketing. Just a quiet masterpiece about Mumbai locals and loneliness.',
+    spoiler: false,
+    window_tier: 'standard',
+    distance_meters: 203,
+    created_at: new Date(Date.now() - 48 * 3600_000).toISOString(),
+  },
+];

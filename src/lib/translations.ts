@@ -49,6 +49,11 @@ export const UI_STRINGS: Record<string, Record<Lang, string>> = {
     bn: 'বাউন্টি ও উপার্জন',
     hi: 'इनाम और कमाई',
   },
+  nav_cinema: {
+    en: 'Cinema Sentinel',
+    bn: 'সিনেমা সেন্টিনেল',
+    hi: 'सिनेमा सेंटिनल',
+  },
   nav_scanner: {
     en: 'WhatsApp Shield',
     bn: 'হোয়াটসঅ্যাপ শিল্ড',
@@ -127,6 +132,11 @@ export const UI_STRINGS: Record<string, Record<Lang, string>> = {
     en: 'Complete quests, climb the leaderboard and withdraw real earnings via UPI',
     bn: 'কোয়েস্ট সম্পন্ন করুন, লিডারবোর্ডে উঠুন এবং ইউপিআই-তে উপার্জন তুলুন',
     hi: 'क्वेस्ट पूरा करें, लीडरबोर्ड पर चढ़ें और UPI से कमाई निकालें',
+  },
+  sub_cinema: {
+    en: 'Ticket-verified movie reviews — no bots, no pirate clips, no paid review farms',
+    bn: 'টিকিট-যাচাইকৃত মুভি রিভিউ — কোনো বট, পাইরেট ক্লিপ বা পেইড রিভিউ ফার্ম নয়',
+    hi: 'टिकट-सत्यापित मूवी समीक्षाएँ — न बॉट, न पायरेट क्लिप, न पेड समीक्षा फ़ार्म',
   },
   sub_scanner: {
     en: 'Paste any WhatsApp forward and get an instant AI fact-check',
