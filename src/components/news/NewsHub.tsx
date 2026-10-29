@@ -998,42 +998,44 @@ export function NewsHub() {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
-                      <div className="flex min-w-[9rem] flex-1 items-center gap-2">
-                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
-                          <div
-                            className="h-full bg-brand-emerald transition-all duration-300"
-                            style={{ width: `${realPercent}%` }}
-                          />
-                        </div>
-                        <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-brand-emerald">
-                          {realPercent}%
-                        </span>
+                    {/* Meter + % live on their own row at every width;
+                        the 3 vote chips sit below in a 3-column grid so
+                        each one gets equal space and nothing clips on
+                        narrow phones. At sm+ the chips become a flex row. */}
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
+                        <div
+                          className="h-full bg-brand-emerald transition-all duration-300"
+                          style={{ width: `${realPercent}%` }}
+                        />
                       </div>
+                      <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-brand-emerald">
+                        {realPercent}%
+                      </span>
+                    </div>
 
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <ConsensusChip
-                          tone="emerald"
-                          active={currentVote === 'real'}
-                          icon={<CheckCircle2 size={12} />}
-                          label={t('realVotes', lang)}
-                          onClick={() => handleVote(article.id, 'real')}
-                        />
-                        <ConsensusChip
-                          tone="amber"
-                          active={currentVote === 'needs_context'}
-                          icon={<HelpCircle size={12} />}
-                          label={lang === 'bn' ? 'প্রসঙ্গ প্রয়োজন' : lang === 'hi' ? 'संदर्भ चाहिए' : 'Context'}
-                          onClick={() => handleVote(article.id, 'needs_context')}
-                        />
-                        <ConsensusChip
-                          tone="rose"
-                          active={currentVote === 'hoax'}
-                          icon={<AlertTriangle size={12} />}
-                          label={t('hoaxVotes', lang)}
-                          onClick={() => handleVote(article.id, 'hoax')}
-                        />
-                      </div>
+                    <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
+                      <ConsensusChip
+                        tone="emerald"
+                        active={currentVote === 'real'}
+                        icon={<CheckCircle2 size={12} />}
+                        label={t('realVotes', lang)}
+                        onClick={() => handleVote(article.id, 'real')}
+                      />
+                      <ConsensusChip
+                        tone="amber"
+                        active={currentVote === 'needs_context'}
+                        icon={<HelpCircle size={12} />}
+                        label={lang === 'bn' ? 'প্রসঙ্গ প্রয়োজন' : lang === 'hi' ? 'संदर्भ चाहिए' : 'Context'}
+                        onClick={() => handleVote(article.id, 'needs_context')}
+                      />
+                      <ConsensusChip
+                        tone="rose"
+                        active={currentVote === 'hoax'}
+                        icon={<AlertTriangle size={12} />}
+                        label={t('hoaxVotes', lang)}
+                        onClick={() => handleVote(article.id, 'hoax')}
+                      />
                     </div>
                   </div>
 
@@ -1424,12 +1426,15 @@ function ConsensusChip({
   active,
   icon,
   label,
+  count,
   onClick,
 }: {
   tone: ConsensusTone;
   active: boolean;
   icon: React.ReactNode;
   label: string;
+  /** Optional vote count — rendered as a smaller suffix inside the chip. */
+  count?: number;
   onClick: () => void;
 }) {
   const t = CONSENSUS_TONE[tone];
@@ -1438,7 +1443,10 @@ function ConsensusChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'press-effect flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md',
+        // w-full so each chip fills its grid cell on mobile; the chips row
+        // uses `grid grid-cols-3` on narrow widths and `sm:flex` beyond.
+        // `justify-center` keeps icon+label visually balanced in the cell.
+        'press-effect flex w-full items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md min-w-0',
         active ? 'shadow-sm' : 'hover:brightness-110',
       )}
       style={
@@ -1447,8 +1455,13 @@ function ConsensusChip({
           : { background: t.idleBg, borderColor: t.idleBorder, color: t.idleText }
       }
     >
-      {icon}
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0 truncate">{label}</span>
+      {count != null && (
+        <span className="ml-0.5 shrink-0 font-mono text-[10px] font-semibold opacity-70">
+          {count}
+        </span>
+      )}
     </button>
   );
 }
@@ -1966,42 +1979,45 @@ function NewsDrillDownPage({
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
-              <div className="flex min-w-[10rem] flex-1 items-center gap-2">
-                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
-                  <div
-                    className="h-full bg-brand-emerald transition-all duration-300"
-                    style={{ width: `${realPercent}%` }}
-                  />
-                </div>
-                <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-brand-emerald">
-                  {realPercent}%
-                </span>
+            {/* Meter row on its own line, 3-chip grid below so each
+                chip gets equal width on narrow phones. */}
+            <div className="flex items-center gap-2">
+              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
+                <div
+                  className="h-full bg-brand-emerald transition-all duration-300"
+                  style={{ width: `${realPercent}%` }}
+                />
               </div>
+              <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-brand-emerald">
+                {realPercent}%
+              </span>
+            </div>
 
-              <div className="flex shrink-0 items-center gap-1.5">
-                <ConsensusChip
-                  tone="emerald"
-                  active={userVote === 'real'}
-                  icon={<CheckCircle2 size={13} />}
-                  label={`Verify Real · ${article.realVotes ?? 100}`}
-                  onClick={() => onVote('real')}
-                />
-                <ConsensusChip
-                  tone="amber"
-                  active={userVote === 'needs_context'}
-                  icon={<HelpCircle size={13} />}
-                  label={`Needs Context · ${article.contextVotes ?? 10}`}
-                  onClick={() => onVote('needs_context')}
-                />
-                <ConsensusChip
-                  tone="rose"
-                  active={userVote === 'hoax'}
-                  icon={<AlertTriangle size={13} />}
-                  label={`Flag Hoax · ${article.hoaxVotes ?? 5}`}
-                  onClick={() => onVote('hoax')}
-                />
-              </div>
+            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2">
+              <ConsensusChip
+                tone="emerald"
+                active={userVote === 'real'}
+                icon={<CheckCircle2 size={13} />}
+                label="Verify Real"
+                count={article.realVotes ?? 100}
+                onClick={() => onVote('real')}
+              />
+              <ConsensusChip
+                tone="amber"
+                active={userVote === 'needs_context'}
+                icon={<HelpCircle size={13} />}
+                label="Needs Context"
+                count={article.contextVotes ?? 10}
+                onClick={() => onVote('needs_context')}
+              />
+              <ConsensusChip
+                tone="rose"
+                active={userVote === 'hoax'}
+                icon={<AlertTriangle size={13} />}
+                label="Flag Hoax"
+                count={article.hoaxVotes ?? 5}
+                onClick={() => onVote('hoax')}
+              />
             </div>
           </Card>
 
