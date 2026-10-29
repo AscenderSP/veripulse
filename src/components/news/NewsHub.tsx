@@ -982,70 +982,58 @@ export function NewsHub() {
                     ))}
                   </div>
 
-                  {/* ── Credibility & Live Voting Strip ── */}
+                  {/* ── Credibility + Live Voting — one-line consolidated row ──
+                      [meter] [%] [Real] [Context] [Hoax], wraps on < sm.
+                      Meta (votes count + Impact Pool) sits above as a thin strip. */}
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="rounded-card border border-[var(--border-subtle)] bg-bg-primary/50 p-2.5 space-y-2"
+                    className="rounded-card border border-[var(--border-subtle)] bg-bg-primary/50 p-2.5 space-y-1.5"
                   >
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-content-secondary">Consensus:</span>
-                        <span className="font-mono font-bold text-brand-emerald">{realPercent}% Verified</span>
-                        <span className="text-content-muted font-mono">({totalVotes} votes)</span>
-                      </div>
-                      <div className="text-[10px] text-content-muted">
-                        Impact Pool: {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
-                      </div>
+                    <div className="flex items-center justify-between gap-2 text-[10px] text-content-muted">
+                      <span className="font-mono">
+                        {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+                      </span>
+                      <span>
+                        Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
+                      </span>
                     </div>
 
-                    {/* Consensus Meter Bar */}
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-elevated">
-                      <div
-                        className="h-full bg-brand-emerald transition-all duration-300"
-                        style={{ width: `${realPercent}%` }}
-                      />
-                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+                      <div className="flex min-w-[9rem] flex-1 items-center gap-2">
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
+                          <div
+                            className="h-full bg-brand-emerald transition-all duration-300"
+                            style={{ width: `${realPercent}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-brand-emerald">
+                          {realPercent}%
+                        </span>
+                      </div>
 
-                    {/* 3-Way Vote Buttons */}
-                    <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                      <button
-                        onClick={() => handleVote(article.id, 'real')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 rounded-button py-1.5 text-[10px] font-semibold transition-all',
-                          currentVote === 'real'
-                            ? 'bg-brand-emerald text-[#04110b] shadow-sm'
-                            : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                        )}
-                      >
-                        <CheckCircle2 size={12} />
-                        <span>{t('realVotes', lang)}</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleVote(article.id, 'needs_context')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 rounded-button py-1.5 text-[10px] font-semibold transition-all',
-                          currentVote === 'needs_context'
-                            ? 'bg-brand-amber text-[#04110b] shadow-sm'
-                            : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                        )}
-                      >
-                        <HelpCircle size={12} />
-                        <span>{lang === 'bn' ? 'প্রসঙ্গ প্রয়োজন' : lang === 'hi' ? 'संदर्भ चाहिए' : 'Context'}</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleVote(article.id, 'hoax')}
-                        className={cn(
-                          'flex items-center justify-center gap-1 rounded-button py-1.5 text-[10px] font-semibold transition-all',
-                          currentVote === 'hoax'
-                            ? 'bg-brand-rose text-white shadow-sm'
-                            : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                        )}
-                      >
-                        <AlertTriangle size={12} />
-                        <span>{t('hoaxVotes', lang)}</span>
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <ConsensusChip
+                          tone="emerald"
+                          active={currentVote === 'real'}
+                          icon={<CheckCircle2 size={12} />}
+                          label={t('realVotes', lang)}
+                          onClick={() => handleVote(article.id, 'real')}
+                        />
+                        <ConsensusChip
+                          tone="amber"
+                          active={currentVote === 'needs_context'}
+                          icon={<HelpCircle size={12} />}
+                          label={lang === 'bn' ? 'প্রসঙ্গ প্রয়োজন' : lang === 'hi' ? 'संदर्भ चाहिए' : 'Context'}
+                          onClick={() => handleVote(article.id, 'needs_context')}
+                        />
+                        <ConsensusChip
+                          tone="rose"
+                          active={currentVote === 'hoax'}
+                          icon={<AlertTriangle size={12} />}
+                          label={t('hoaxVotes', lang)}
+                          onClick={() => handleVote(article.id, 'hoax')}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1397,6 +1385,71 @@ function StickyFilterBar({
         </DropdownPanel>
       )}
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// ConsensusChip — tone-coded liquid-glass vote chip, shared between the
+// article-list card and the drill-down modal. Mirrors the StoryCard
+// VoteButton treatment so the three verdicts (real / needs context /
+// hoax) read at a glance everywhere.
+// ────────────────────────────────────────────────────────────────────────
+type ConsensusTone = 'emerald' | 'amber' | 'rose';
+const CONSENSUS_TONE: Record<
+  ConsensusTone,
+  { color: string; idleBg: string; idleBorder: string; idleText: string }
+> = {
+  emerald: {
+    color: 'var(--brand-emerald)',
+    idleBg: 'rgba(91, 191, 150, 0.1)',
+    idleBorder: 'rgba(91, 191, 150, 0.35)',
+    idleText: 'var(--brand-emerald)',
+  },
+  amber: {
+    color: 'var(--brand-amber)',
+    idleBg: 'rgba(227, 176, 92, 0.1)',
+    idleBorder: 'rgba(227, 176, 92, 0.35)',
+    idleText: 'var(--brand-amber)',
+  },
+  rose: {
+    color: 'var(--brand-rose)',
+    idleBg: 'rgba(229, 129, 144, 0.1)',
+    idleBorder: 'rgba(229, 129, 144, 0.35)',
+    idleText: 'var(--brand-rose)',
+  },
+};
+
+function ConsensusChip({
+  tone,
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  tone: ConsensusTone;
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  const t = CONSENSUS_TONE[tone];
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'press-effect flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md',
+        active ? 'shadow-sm' : 'hover:brightness-110',
+      )}
+      style={
+        active
+          ? { background: t.color, borderColor: t.color, color: '#0b0e14' }
+          : { background: t.idleBg, borderColor: t.idleBorder, color: t.idleText }
+      }
+    >
+      {icon}
+      <span className="whitespace-nowrap">{label}</span>
+    </button>
   );
 }
 
@@ -1897,71 +1950,58 @@ function NewsDrillDownPage({
             </div>
           </div>
 
-          {/* ── Consensus Voting Center ── */}
-          <Card className="border-[var(--border-subtle)] bg-bg-primary p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-content-primary">
-                  Citizen Consensus Verification
-                </h4>
-                <p className="text-[11px] text-content-muted">
-                  Cast your vote to shape the article&apos;s cryptographic trust index on VeriPulse.
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="font-mono text-xs font-bold text-brand-emerald">{realPercent}% Real</div>
-                <div className="text-[10px] text-content-muted">{totalVotes} consensus votes</div>
-              </div>
+          {/* ── Consensus Voting Center — one-line consolidated row.
+                [meter] [%] [Real · n] [Context · n] [Hoax · n]
+              Thin header strip above carries the title + total votes
+              + Impact Pool so the eye lands on the vote chips. */}
+          <Card className="border-[var(--border-subtle)] bg-bg-primary p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 text-[10px] text-content-muted">
+              <span className="font-bold uppercase tracking-wider text-content-primary">
+                Citizen Consensus
+              </span>
+              <span>
+                <span className="font-mono text-content-secondary">{totalVotes} votes</span>
+                <span className="mx-1.5">·</span>
+                Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
+              </span>
             </div>
 
-            {/* Meter Bar */}
-            <div className="h-2 w-full overflow-hidden rounded-full bg-bg-elevated">
-              <div
-                className="h-full bg-brand-emerald transition-all duration-300"
-                style={{ width: `${realPercent}%` }}
-              />
-            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+              <div className="flex min-w-[10rem] flex-1 items-center gap-2">
+                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
+                  <div
+                    className="h-full bg-brand-emerald transition-all duration-300"
+                    style={{ width: `${realPercent}%` }}
+                  />
+                </div>
+                <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-brand-emerald">
+                  {realPercent}%
+                </span>
+              </div>
 
-            {/* Voting Options */}
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              <button
-                onClick={() => onVote('real')}
-                className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-button py-2 text-xs font-bold transition-all',
-                  userVote === 'real'
-                    ? 'bg-brand-emerald text-[#04110b] shadow-md'
-                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                )}
-              >
-                <CheckCircle2 size={14} />
-                <span>Verify Real ({article.realVotes ?? 100})</span>
-              </button>
-
-              <button
-                onClick={() => onVote('needs_context')}
-                className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-button py-2 text-xs font-bold transition-all',
-                  userVote === 'needs_context'
-                    ? 'bg-brand-amber text-[#04110b] shadow-md'
-                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                )}
-              >
-                <HelpCircle size={14} />
-                <span>Needs Context ({article.contextVotes ?? 10})</span>
-              </button>
-
-              <button
-                onClick={() => onVote('hoax')}
-                className={cn(
-                  'flex items-center justify-center gap-1.5 rounded-button py-2 text-xs font-bold transition-all',
-                  userVote === 'hoax'
-                    ? 'bg-brand-rose text-white shadow-md'
-                    : 'border border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
-                )}
-              >
-                <AlertTriangle size={14} />
-                <span>Flag Hoax ({article.hoaxVotes ?? 5})</span>
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <ConsensusChip
+                  tone="emerald"
+                  active={userVote === 'real'}
+                  icon={<CheckCircle2 size={13} />}
+                  label={`Verify Real · ${article.realVotes ?? 100}`}
+                  onClick={() => onVote('real')}
+                />
+                <ConsensusChip
+                  tone="amber"
+                  active={userVote === 'needs_context'}
+                  icon={<HelpCircle size={13} />}
+                  label={`Needs Context · ${article.contextVotes ?? 10}`}
+                  onClick={() => onVote('needs_context')}
+                />
+                <ConsensusChip
+                  tone="rose"
+                  active={userVote === 'hoax'}
+                  icon={<AlertTriangle size={13} />}
+                  label={`Flag Hoax · ${article.hoaxVotes ?? 5}`}
+                  onClick={() => onVote('hoax')}
+                />
+              </div>
             </div>
           </Card>
 
