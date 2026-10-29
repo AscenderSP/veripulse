@@ -51,8 +51,8 @@ export function IncidentMap({
               </div>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold text-content-primary line-clamp-1">{s.titles[lang]}</div>
-                  <p className="text-[11px] text-content-secondary line-clamp-1">{s.summaries[lang]}</p>
+                  <div className="font-bold text-content-primary line-clamp-2">{s.titles[lang]}</div>
+                  <p className="text-[11px] text-content-secondary line-clamp-2">{s.summaries[lang]}</p>
                 </div>
                 <ChevronRight
                   size={14}

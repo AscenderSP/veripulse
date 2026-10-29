@@ -3539,7 +3539,7 @@ function ProductFilterBar(p: ProductFilterBarProps) {
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
     >
       <div className="px-3 py-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/95 px-2 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
+        <div className="flex flex-wrap items-center gap-1.5 overflow-visible rounded-2xl border border-[var(--border-strong)] bg-bg-elevated/95 px-2 py-1.5 shadow-xl backdrop-blur-xl sm:flex-nowrap sm:overflow-x-auto sm:rounded-full sm:no-scrollbar">
           <PFChip
             icon={hubOptions.find((o) => o.id === p.hubTab)?.icon}
             label={hubLabel}

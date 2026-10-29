@@ -211,8 +211,8 @@ function LiveNotifications({ onNavigate }: { onNavigate?: (s: Section) => void }
                     <span className="text-[9px] font-bold uppercase tracking-wider text-content-muted">{labelForType(n.type)}</span>
                     <span className="text-[9px] text-content-muted" suppressHydrationWarning>· {mounted ? timeAgo(n.time) : 'recently'}</span>
                   </div>
-                  <span className="font-medium text-content-primary line-clamp-1 group-hover:text-brand-emerald transition-colors">{n.title}</span>
-                  <span className="text-[10px] text-content-muted line-clamp-1">{n.detail}</span>
+                  <span className="block font-medium text-content-primary line-clamp-2 group-hover:text-brand-emerald transition-colors">{n.title}</span>
+                  <span className="block text-[10px] text-content-muted line-clamp-2">{n.detail}</span>
                 </div>
                 <ChevronRight size={12} className="shrink-0 mt-1 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
@@ -333,7 +333,7 @@ function ActiveBountiesWidget({ onNavigate }: { onNavigate?: (s: Section) => voi
                 className="press-effect w-full rounded-button glass p-2.5 space-y-1 transition-all duration-200 hover:bg-bg-elevated/30 text-left group"
               >
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="font-bold text-content-primary line-clamp-1 group-hover:text-brand-emerald transition-colors">{b.title}</span>
+                  <span className="font-bold text-content-primary line-clamp-2 group-hover:text-brand-emerald transition-colors">{b.title}</span>
                   <div className="text-right shrink-0 ml-1">
                     <span className="font-mono font-black text-brand-amber block" style={{ textShadow: '0 0 8px rgba(245,158,11,0.3)' }}>
                       +{formatVPCoins(vpReward)}

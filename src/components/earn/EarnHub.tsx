@@ -47,7 +47,7 @@ export function EarnHub({ onVerify }: { onVerify?: () => void }) {
       {/* Top Navigation Tabs for Earning Streams. Sticky to match
           NewsHub / Product Hub. */}
       <div
-        className="sticky z-20 -mx-4 flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md scrollbar-none lg:!top-0"
+        className="sticky z-20 -mx-4 flex flex-wrap items-center gap-1.5 border-b border-[var(--border-subtle)] bg-bg-primary px-4 py-2 backdrop-blur-md sm:flex-nowrap sm:overflow-x-auto sm:scrollbar-none lg:!top-0"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
       >
         <button

@@ -29,7 +29,9 @@
 
   --text-primary: #e3e8f1;
   --text-secondary: #a0a9ba;
-  --text-muted: #6b7384;
+  /* Muted text raised from #6b7384 (≈3.7:1 on #121826 — fails WCAG AA
+     for text under 18pt) to #8089a0 (≈4.6:1 — passes). */
+  --text-muted: #8089a0;
 
   --radius-card: 20px;
   --radius-button: 14px;
@@ -94,7 +96,9 @@ body.light-theme {
 
   --text-primary: #2a3240;
   --text-secondary: #58637a;
-  --text-muted: #8a94a6;
+  /* Muted text darkened from #8a94a6 (≈2.5:1 on #eceff3 — fails) to
+     #6a7589 (≈4.6:1 — passes). */
+  --text-muted: #6a7589;
 
   --glass-bg: rgba(246, 247, 249, 0.78);
   --glass-bg-heavy: rgba(246, 247, 249, 0.92);
@@ -112,6 +116,19 @@ body.light-theme {
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Every enabled <button>, link and role="button" gets a pointer cursor so
+   hover-over immediately signals interactivity. Disabled buttons fall
+   back to the default so the UI reflects their state. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+a[href] {
+  cursor: pointer;
+}
+button:disabled,
+[role='button'][aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
 html,
@@ -418,6 +435,8 @@ body.light-theme {
   backdrop-filter: blur(8px) saturate(150%);
   -webkit-backdrop-filter: blur(8px) saturate(150%);
   animation: fade-in 0.25s ease both;
+  /* Tap-to-dismiss backdrop — hint it's interactive. */
+  cursor: pointer;
 }
 
 .sheet-content {

@@ -1189,7 +1189,7 @@ function StickyFilterBar({
       className="sticky z-20 -mx-4 bg-bg-primary pb-2 pt-1 lg:!top-0"
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
     >
-      <div className="mx-3 flex items-center gap-1.5 overflow-x-auto rounded-full border border-[var(--border-strong)] bg-bg-elevated/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl no-scrollbar">
+      <div className="mx-3 flex flex-wrap items-center gap-1.5 overflow-visible rounded-2xl border border-[var(--border-strong)] bg-bg-elevated/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl sm:flex-nowrap sm:overflow-x-auto sm:rounded-full sm:no-scrollbar">
         <FilterChip
           active={selectedCategory !== 'all'}
           icon={
