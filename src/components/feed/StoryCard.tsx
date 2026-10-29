@@ -174,40 +174,48 @@ export function StoryCard({
         <HoaxBreakdown story={story} />
       </div>
 
-      {/* credibility */}
-      <div className="px-4 pt-3">
-        <div className="mb-1 flex items-center justify-between text-xs">
-          <span className="text-content-muted">{t('credibility', lang)}</span>
-          <span className="font-mono font-semibold" style={{ color: meta.color }}>
+      {/* credibility + vote module — single consolidated row.
+          Mobile wraps the meter + % above the 3 vote chips so each half
+          has breathing room; on sm+ everything sits on one line:
+            [cred meter] [%]  [Verify Real] [Needs Context] [Flag Hoax] */}
+      <div
+        className="flex flex-wrap items-center gap-2 px-4 pb-3 pt-2 sm:flex-nowrap sm:gap-3"
+        aria-label={t('credibility', lang)}
+      >
+        <div className="flex min-w-[12rem] flex-1 items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <CredMeter value={cred} />
+          </div>
+          <span
+            className="shrink-0 font-mono text-[11px] font-semibold tabular-nums"
+            style={{ color: meta.color }}
+          >
             {Math.round(cred)}%
           </span>
         </div>
-        <CredMeter value={cred} />
-      </div>
-
-      {/* vote module */}
-      <div className="grid grid-cols-3 gap-2 p-4 pt-3">
-        <VoteButton
-          active={voted === 'real'}
-          onClick={() => handleVote('real')}
-          icon={<CheckCircle2 size={16} />}
-          label={t('verifyReal', lang)}
-          activeColor="var(--brand-emerald)"
-        />
-        <VoteButton
-          active={voted === 'needs_context'}
-          onClick={() => handleVote('needs_context')}
-          icon={<HelpCircle size={16} />}
-          label={t('needsContext', lang)}
-          activeColor="var(--brand-amber)"
-        />
-        <VoteButton
-          active={voted === 'hoax'}
-          onClick={() => handleVote('hoax')}
-          icon={<AlertTriangle size={16} />}
-          label={t('flagHoax', lang)}
-          activeColor="var(--brand-rose)"
-        />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <VoteButton
+            active={voted === 'real'}
+            onClick={() => handleVote('real')}
+            icon={<CheckCircle2 size={14} />}
+            label={t('verifyReal', lang)}
+            tone="emerald"
+          />
+          <VoteButton
+            active={voted === 'needs_context'}
+            onClick={() => handleVote('needs_context')}
+            icon={<HelpCircle size={14} />}
+            label={t('needsContext', lang)}
+            tone="amber"
+          />
+          <VoteButton
+            active={voted === 'hoax'}
+            onClick={() => handleVote('hoax')}
+            icon={<AlertTriangle size={14} />}
+            label={t('flagHoax', lang)}
+            tone="rose"
+          />
+        </div>
       </div>
 
       {voteError && <p className="-mt-2 px-4 pb-3 text-xs text-brand-amber">{voteError}</p>}
@@ -271,32 +279,77 @@ function TimelineDot({ color, children }: { color: string; children: React.React
   );
 }
 
+/** Vote chip. The tone drives the whole look so each verdict reads at a
+    glance:
+      · emerald → Verify Real
+      · amber   → Needs Context
+      · rose    → Flag Hoax
+    Idle state: tinted liquid glass (tone-coloured border + 10 % tone
+    glass bg + muted tone text). Active state: solid tone fill. Keeps
+    the three choices visually distinct even before the user hovers. */
+type VoteTone = 'emerald' | 'amber' | 'rose';
+const TONE: Record<
+  VoteTone,
+  { color: string; idleBg: string; idleBorder: string; idleText: string }
+> = {
+  emerald: {
+    color: 'var(--brand-emerald)',
+    idleBg: 'rgba(91, 191, 150, 0.1)',
+    idleBorder: 'rgba(91, 191, 150, 0.35)',
+    idleText: 'var(--brand-emerald)',
+  },
+  amber: {
+    color: 'var(--brand-amber)',
+    idleBg: 'rgba(227, 176, 92, 0.1)',
+    idleBorder: 'rgba(227, 176, 92, 0.35)',
+    idleText: 'var(--brand-amber)',
+  },
+  rose: {
+    color: 'var(--brand-rose)',
+    idleBg: 'rgba(229, 129, 144, 0.1)',
+    idleBorder: 'rgba(229, 129, 144, 0.35)',
+    idleText: 'var(--brand-rose)',
+  },
+};
+
 function VoteButton({
   active,
   onClick,
   icon,
   label,
-  activeColor,
+  tone,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  activeColor: string;
+  tone: VoteTone;
 }) {
+  const t = TONE[tone];
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        'flex flex-col items-center gap-1 rounded-button border px-2 py-2.5 text-[11px] font-semibold transition-all',
-        active
-          ? 'border-transparent'
-          : 'border-[var(--border-subtle)] text-content-secondary hover:border-[var(--border-strong)] hover:text-content-primary',
+        'press-effect flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md',
+        active ? 'shadow-sm' : 'hover:brightness-110',
       )}
-      style={active ? { color: activeColor, background: 'var(--bg-elevated)', borderColor: activeColor } : undefined}
+      style={
+        active
+          ? {
+              background: t.color,
+              borderColor: t.color,
+              color: '#0b0e14',
+            }
+          : {
+              background: t.idleBg,
+              borderColor: t.idleBorder,
+              color: t.idleText,
+            }
+      }
     >
       {icon}
-      {label}
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }
