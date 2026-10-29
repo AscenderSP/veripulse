@@ -58,6 +58,7 @@ import { onRefresh } from '@/lib/refreshBus';
 import { EmptyState } from '@/components/ui/Skeleton';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useBackClose } from '@/hooks/useBackClose';
+import { ReporterProfilePage } from '@/components/news/ReporterProfilePage';
 import type { NewsCategory, NewsArticle, Lang, ReporterDispatch, Story } from '@/lib/types';
 
 /** Image for an article card. Verified photo wins; otherwise a subject-related
@@ -254,6 +255,11 @@ export function NewsHub() {
   const [drillDownArticle, setDrillDownArticle] = useState<NewsArticle | null>(null);
   // Initial tab inside drill-down
   const [drillDownInitialTab, setDrillDownInitialTab] = useState<'analysis' | 'timeline' | 'c2pa' | 'community' | 'dispatches'>('analysis');
+  // Reporter profile drill-down (deeper than the article drill-down; opened
+  // from the reporter chip on the list card or from a dispatch header)
+  const [drillDownReporter, setDrillDownReporter] = useState<
+    { reporter: ReporterDispatch; fromArticle?: NewsArticle } | null
+  >(null);
 
   // Modals for posting news
   const [fileDispatchOpen, setFileDispatchOpen] = useState(false);
@@ -261,6 +267,7 @@ export function NewsHub() {
   // Native back / swipe-back closes drill-down views instead of leaving
   // the app. Order matters: the deepest overlay registers first and
   // consumes the back action.
+  useBackClose(drillDownReporter !== null, () => setDrillDownReporter(null));
   useBackClose(drillDownArticle !== null, () => setDrillDownArticle(null));
   useBackClose(fileDispatchOpen, () => setFileDispatchOpen(false));
   const [pressPassModalOpen, setPressPassModalOpen] = useState(false);
@@ -736,6 +743,22 @@ export function NewsHub() {
     );
   }
 
+  if (drillDownReporter) {
+    return (
+      <ReporterProfilePage
+        reporter={drillDownReporter.reporter}
+        fromArticle={drillDownReporter.fromArticle}
+        allArticles={articles}
+        onBack={() => setDrillDownReporter(null)}
+        onOpenArticle={(article, tab) => {
+          setDrillDownReporter(null);
+          setDrillDownArticle(article);
+          setDrillDownInitialTab(tab ?? 'analysis');
+        }}
+      />
+    );
+  }
+
   if (drillDownArticle) {
     return (
       <NewsDrillDownPage
@@ -748,6 +771,9 @@ export function NewsHub() {
         copied={copiedId === drillDownArticle.id}
         getCategoryIcon={getCategoryIcon}
         initialTab={drillDownInitialTab}
+        onOpenReporter={(reporter) =>
+          setDrillDownReporter({ reporter, fromArticle: drillDownArticle })
+        }
       />
     );
   }
@@ -868,15 +894,19 @@ export function NewsHub() {
 
                   {/* ── Reporter's Badge Strip Directly Below the Photo ── */}
                   {article.leadReporter && (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDrillDownArticle(article);
-                        setDrillDownInitialTab('dispatches');
-                      }}
-                      className="rounded-card border border-[var(--border-subtle)] bg-bg-primary/80 p-2.5 transition-colors hover:border-brand-emerald/40"
-                    >
-                      <div className="flex items-center gap-2">
+                    <div className="rounded-card border border-[var(--border-subtle)] bg-bg-primary/80 p-2.5 transition-colors hover:border-brand-emerald/40">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDrillDownReporter({
+                            reporter: article.leadReporter!,
+                            fromArticle: article,
+                          });
+                        }}
+                        className="press-effect flex w-full items-center gap-2 cursor-pointer rounded-button text-left"
+                        aria-label={`View profile of ${article.leadReporter.reporterName}`}
+                      >
                         <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-brand-emerald/60">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -887,16 +917,25 @@ export function NewsHub() {
                         </div>
                         <div className="min-w-0 flex-1 truncate">
                           <div className="flex items-center gap-1 truncate text-[11px] font-bold text-content-primary">
-                            <span className="truncate">{article.leadReporter.reporterName}</span>
+                            <span className="truncate hover:text-brand-emerald transition-colors">
+                              {article.leadReporter.reporterName}
+                            </span>
                             <CheckCircle2 size={11} className="text-brand-emerald shrink-0" />
                           </div>
                           <div className="truncate text-[9px] text-content-muted">
                             {article.leadReporter.reporterBadge}
                           </div>
                         </div>
-                      </div>
+                      </button>
 
-                      <div className="mt-1.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-1.5 text-[10px]">
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDrillDownArticle(article);
+                          setDrillDownInitialTab('dispatches');
+                        }}
+                        className="mt-1.5 flex items-center justify-between border-t border-[var(--border-subtle)] pt-1.5 text-[10px] cursor-pointer"
+                      >
                         <span className="flex items-center gap-1 text-content-muted" suppressHydrationWarning>
                           <Clock size={10} /> {timeAgo(article.leadReporter.submittedAt)}
                         </span>
@@ -1878,6 +1917,7 @@ function NewsDrillDownPage({
   copied,
   getCategoryIcon,
   initialTab = 'analysis',
+  onOpenReporter,
 }: {
   article: NewsArticle;
   lang: Lang;
@@ -1888,6 +1928,7 @@ function NewsDrillDownPage({
   copied: boolean;
   getCategoryIcon: (cat: NewsCategory) => React.ReactNode;
   initialTab?: 'analysis' | 'timeline' | 'c2pa' | 'community' | 'dispatches';
+  onOpenReporter?: (reporter: ReporterDispatch) => void;
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const summaryText = article.summaries[lang] ?? article.summaries.en;
@@ -2138,7 +2179,12 @@ function NewsDrillDownPage({
                     className="border-[var(--border-subtle)] bg-bg-primary p-4 space-y-3"
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenReporter?.(dispatch)}
+                        className="press-effect group flex items-center gap-2.5 text-left cursor-pointer rounded-button"
+                        aria-label={`View profile of ${dispatch.reporterName}`}
+                      >
                         <img
                           src={dispatch.reporterAvatar}
                           alt={dispatch.reporterName}
@@ -2146,7 +2192,9 @@ function NewsDrillDownPage({
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-content-primary text-xs">{dispatch.reporterName}</span>
+                            <span className="font-bold text-content-primary text-xs group-hover:text-brand-emerald transition-colors">
+                              {dispatch.reporterName}
+                            </span>
                             <span className="rounded-pill bg-[var(--brand-emerald-glow)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-brand-emerald">
                               {dispatch.status === 'lead' ? 'Lead Reporter' : 'Corroborating'}
                             </span>
@@ -2155,7 +2203,7 @@ function NewsDrillDownPage({
                             {dispatch.reporterBadge} · {dispatch.pressIdNumber || 'PRESS-PASS-2026'} · {dispatch.location}
                           </div>
                         </div>
-                      </div>
+                      </button>
 
                       <div className="text-right">
                         <div className="font-mono font-bold text-brand-amber text-sm">
