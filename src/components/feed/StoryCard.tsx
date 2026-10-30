@@ -12,6 +12,9 @@ import {
   Bot,
   Sparkles,
   Loader2,
+  Clock,
+  UserRound,
+  Tag,
 } from 'lucide-react';
 import type { Story, StoryStage, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
@@ -86,44 +89,92 @@ export function StoryCard({
     });
   }
 
+  const imageUrl = hasOwnImage
+    ? story.media_url!
+    : relatedImage ?? story.media_url ?? getReferenceImage(story.category);
+  const sourceLabel = story.source === 'rss' ? t('wireSource', lang) : t('citizenSource', lang);
+  const reporterLabel =
+    story.source === 'rss'
+      ? 'Wire bureau'
+      : story.author_id
+        ? `@${story.author_id.slice(0, 10)}`
+        : t('citizenSource', lang);
+
   return (
     <Card className="overflow-hidden animate-fade-in press-effect">
-      {/* header */}
-      <div className="flex items-start justify-between gap-3 p-4 pb-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge color={meta.color} bg={meta.bg}>
-            {stage === 'public' && <ShieldCheck size={13} />}
-            {stage === 'quarantined' && <AlertTriangle size={13} />}
-            {stage === 'public'
-              ? t('publicVerified', lang)
-              : stage === 'quarantined'
-                ? t('quarantinedHoax', lang)
-                : stage === 'tier_1'
-                  ? t('ring1Review', lang)
-                  : t('ring2Review', lang)}
-          </Badge>
-          <Badge>{story.category}</Badge>
+      {/* ── Compact header: thumbnail + title + meta + tags ── */}
+      <div className="flex gap-3 p-3">
+        {/* Thumbnail (small by default, clicking expands) */}
+        <button
+          type="button"
+          onClick={toggleTimeline}
+          aria-expanded={open}
+          aria-label={open ? 'Collapse story' : 'Expand story'}
+          className="press-effect relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-surface-sunken sm:h-24 sm:w-24 cursor-pointer"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={story.titles[lang]}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
           {story.c2pa_verified && (
-            <Badge color="var(--brand-sky)" bg="rgba(14,165,233,0.12)">
-              <Sparkles size={12} /> C2PA
-            </Badge>
+            <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] font-bold text-white backdrop-blur-sm">
+              <ShieldCheck size={9} className="text-brand-emerald" /> C2PA
+            </span>
           )}
-          {story.ai_probability_score >= 30 && (
-            <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
-              <Bot size={12} /> AI {Math.round(story.ai_probability_score)}%
+        </button>
+
+        {/* Right: title + meta */}
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <h3 className="text-[14px] font-bold leading-snug text-content-primary line-clamp-2">
+            {story.titles[lang]}
+          </h3>
+
+          {/* Meta row: time · reporter · location · source */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-content-muted">
+            <span className="flex items-center gap-0.5" suppressHydrationWarning>
+              <Clock size={10} /> {timeAgo(story.created_at)}
+            </span>
+            <span className="flex items-center gap-0.5">
+              <UserRound size={10} /> {reporterLabel}
+            </span>
+            <span className="flex items-center gap-0.5">
+              <MapPin size={10} /> {story.location_name}
+            </span>
+            <span className="font-mono text-[10px]">{sourceLabel}</span>
+          </div>
+
+          {/* Tags row: stage + category + C2PA + AI */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge color={meta.color} bg={meta.bg}>
+              {stage === 'public' && <ShieldCheck size={11} />}
+              {stage === 'quarantined' && <AlertTriangle size={11} />}
+              {stage === 'public'
+                ? t('publicVerified', lang)
+                : stage === 'quarantined'
+                  ? t('quarantinedHoax', lang)
+                  : stage === 'tier_1'
+                    ? t('ring1Review', lang)
+                    : t('ring2Review', lang)}
             </Badge>
-          )}
+            <Badge>
+              <Tag size={10} /> {story.category}
+            </Badge>
+            {story.ai_probability_score >= 30 && (
+              <Badge color="var(--brand-amber)" bg="rgba(245,158,11,0.12)">
+                <Bot size={10} /> AI {Math.round(story.ai_probability_score)}%
+              </Badge>
+            )}
+          </div>
         </div>
-        <span className="shrink-0 text-xs text-content-muted" suppressHydrationWarning>{timeAgo(story.created_at)}</span>
       </div>
 
-      {/* Visual media. Priority: user media > Wikipedia subject-related image > curated category stock */}
-      {(() => {
-        const imageUrl = hasOwnImage
-          ? story.media_url!
-          : relatedImage ?? story.media_url ?? getReferenceImage(story.category);
-        return (
-          <div className="relative mx-4 mb-3 h-48 overflow-hidden rounded-xl bg-surface-sunken">
+      {/* ── Expanded view: full image + summary + hoax + audio ── */}
+      {open && (
+        <div className="animate-fade-in px-4">
+          <div className="relative mb-3 h-48 overflow-hidden rounded-xl bg-surface-sunken">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imageUrl}
@@ -147,32 +198,23 @@ export function StoryCard({
               )}
             </div>
             {!hasOwnImage && (
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-[9px] leading-tight text-white/80 text-left">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 text-left text-[9px] leading-tight text-white/80">
                 Illustrative — not from scene
               </div>
             )}
           </div>
-        );
-      })()}
 
-      {/* body */}
-      <div className="px-4">
-        <h3 className="text-[15px] font-bold leading-snug text-content-primary">
-          {story.titles[lang]}
-        </h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-content-secondary">
-          {story.summaries[lang]}
-        </p>
-        <div className="mt-2 flex items-center justify-between gap-1.5 text-xs text-content-muted">
-          <div className="flex items-center gap-1.5">
-            <MapPin size={12} /> {story.location_name}
-            <span aria-hidden>·</span>
-            <span className="font-mono">{story.source === 'rss' ? t('wireSource', lang) : t('citizenSource', lang)}</span>
+          <p className="text-sm leading-relaxed text-content-secondary">
+            {story.summaries[lang]}
+          </p>
+
+          <div className="mt-2 flex items-center justify-end">
+            <AudioReadout text={story.summaries[lang]} lang={lang} />
           </div>
-          <AudioReadout text={story.summaries[lang]} lang={lang} />
+
+          <HoaxBreakdown story={story} />
         </div>
-        <HoaxBreakdown story={story} />
-      </div>
+      )}
 
       {/* credibility + vote module — single consolidated row.
           Mobile wraps the meter + % above the 3 vote chips so each half
@@ -220,25 +262,12 @@ export function StoryCard({
 
       {voteError && <p className="-mt-2 px-4 pb-3 text-xs text-brand-amber">{voteError}</p>}
 
-      {/* footer: timeline + share */}
-      <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-4 py-2.5">
-        <button
-          onClick={toggleTimeline}
-          className="flex items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary"
-        >
-          {t('timeline', lang)}
-          <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
-        </button>
-        <button
-          onClick={handleShare}
-          className="flex items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary"
-        >
-          <Share2 size={14} /> {t('share', lang)}
-        </button>
-      </div>
-
+      {/* Expanded timeline — only when the card is open. */}
       {open && (
         <div className="animate-fade-in border-t border-[var(--border-subtle)] bg-bg-primary/40 px-4 py-3">
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-content-muted">
+            {t('timeline', lang)}
+          </div>
           <ol className="relative ml-1 space-y-3 border-l border-[var(--border-strong)] pl-4 text-xs text-content-secondary">
             <TimelineDot color="var(--brand-emerald)">
               {t('primaryReport', lang)} · {timeAgo(story.created_at)} · {t('completeness', lang)}{' '}
@@ -266,6 +295,24 @@ export function StoryCard({
           </ol>
         </div>
       )}
+
+      {/* footer: show-more + share */}
+      <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-4 py-2.5">
+        <button
+          onClick={toggleTimeline}
+          className="press-effect flex items-center gap-1 text-xs font-semibold text-content-secondary hover:text-content-primary"
+          aria-expanded={open}
+        >
+          {open ? 'Show less' : 'Show more'}
+          <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+        </button>
+        <button
+          onClick={handleShare}
+          className="press-effect flex items-center gap-1 text-xs font-semibold text-content-secondary hover:text-content-primary"
+        >
+          <Share2 size={14} /> {t('share', lang)}
+        </button>
+      </div>
     </Card>
   );
 }

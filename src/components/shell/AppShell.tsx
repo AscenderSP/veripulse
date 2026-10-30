@@ -221,15 +221,33 @@ export function AppShell() {
           Mobile: full-page scroll (window scrolls, mobile top bar sticks).
           Desktop: floats as a card alongside the two sidebars, with its
           own internal scroll — only the article/content area scrolls
-          while the frame (sidebars + top bar + fab) stays docked. */}
+          while the frame (sidebars + top bar + fab) stays docked.
+
+          Section accent: `--section-accent` carries the active section's
+          brand colour so headers, chip underlines and the top accent band
+          can tint themselves and give each section a visibly distinct
+          feel without rebuilding the content. */}
       <main
         ref={mainRef}
         className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:sticky lg:top-3 lg:my-3 lg:h-[calc(100vh-1.5rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:px-6 lg:pb-8 lg:pt-5 lg:shadow-xl lg:glass-heavy"
-        style={{
-          // Desktop-only card chrome mirrors the sidebars.
-          borderColor: 'var(--glass-border)',
-        }}
+        style={
+          {
+            borderColor: 'var(--glass-border)',
+            '--section-accent':
+              NAV.find((n) => n.id === section)?.color ?? 'var(--brand-emerald)',
+          } as React.CSSProperties
+        }
       >
+        {/* Section accent band — thin gradient strip across the top of
+            the content column, picking up the section's brand colour. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-[3px] opacity-80 lg:rounded-t-2xl"
+          style={{
+            background:
+              'linear-gradient(90deg, transparent 0%, var(--section-accent) 25%, var(--section-accent) 75%, transparent 100%)',
+          }}
+        />
         <PullToRefreshIndicator
           targetRef={mainRef}
           onRefresh={async () => {
@@ -244,12 +262,19 @@ export function AppShell() {
         />
         {/* Mobile top bar. Sticky so it stays visible while the section
             content scrolls underneath; the opaque background matches
-            --bg-primary so content doesn't bleed through. */}
+            --bg-primary so content doesn't bleed through.
+
+            Carries a section accent chip to make the active section
+            visibly distinct on mobile where the SectionTitle (desktop
+            only) isn't shown. */}
         <div
           className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 bg-bg-primary px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
         >
-          <Brand compact lang={lang} />
+          <div className="flex min-w-0 items-center gap-2">
+            <Brand compact lang={lang} />
+            <SectionAccentChip section={section} lang={lang} />
+          </div>
           <div className="flex items-center gap-1.5">
             <LangSwitch compact />
             <ThemeToggle compact />
@@ -542,12 +567,57 @@ function SectionTitle({ section, lang = 'en' }: { section: Section; lang?: impor
   const navKey = `nav_${section}` as keyof typeof UI_STRINGS;
   const subKey = `sub_${section}` as keyof typeof UI_STRINGS;
   const navItem = NAV.find(n => n.id === section);
+  const accent = navItem?.color ?? 'var(--brand-emerald)';
 
   return (
-    <div className="mb-5 hidden lg:block">
-      <h1 className="text-xl font-extrabold tracking-tight gradient-text inline-block">{t(navKey, lang)}</h1>
-      <p className="mt-0.5 text-sm text-content-muted">{t(subKey, lang)}</p>
+    <div className="mb-5 hidden lg:flex lg:items-center lg:gap-3">
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+        style={{
+          background: `color-mix(in oklab, ${accent} 14%, transparent)`,
+          color: accent,
+          border: `1px solid color-mix(in oklab, ${accent} 32%, transparent)`,
+        }}
+        aria-hidden
+      >
+        {navItem?.icon}
+      </span>
+      <div>
+        <h1
+          className="text-xl font-extrabold tracking-tight inline-block"
+          style={{ color: accent }}
+        >
+          {t(navKey, lang)}
+        </h1>
+        <p className="mt-0.5 text-sm text-content-muted">{t(subKey, lang)}</p>
+      </div>
     </div>
+  );
+}
+
+function SectionAccentChip({
+  section,
+  lang,
+}: {
+  section: Section;
+  lang: import('@/lib/types').Lang;
+}) {
+  const navItem = NAV.find((n) => n.id === section);
+  if (!navItem) return null;
+  const navKey = `nav_${section}` as keyof typeof UI_STRINGS;
+  return (
+    <span
+      className="flex min-w-0 items-center gap-1.5 rounded-pill px-2 py-0.5 text-[11px] font-bold"
+      style={{
+        background: `color-mix(in oklab, ${navItem.color} 14%, transparent)`,
+        color: navItem.color,
+        border: `1px solid color-mix(in oklab, ${navItem.color} 32%, transparent)`,
+      }}
+      aria-label={`Section: ${t(navKey, lang)}`}
+    >
+      {navItem.icon}
+      <span className="truncate">{t(navKey, lang)}</span>
+    </span>
   );
 }
 
