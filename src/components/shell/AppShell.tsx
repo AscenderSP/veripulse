@@ -173,15 +173,44 @@ export function AppShell() {
     );
   }, []);
 
+  const activeAccent =
+    NAV.find((n) => n.id === section)?.color ?? 'var(--brand-emerald)';
+
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1400px]">
+    <div
+      className="relative mx-auto flex min-h-screen w-full max-w-[1400px]"
+      style={{ ['--section-accent' as string]: activeAccent } as React.CSSProperties}
+    >
+      {/* Full-page section-tinted background. Three soft radial lobes of
+          the active section's accent, blended via color-mix with the
+          existing bg-primary. Sits behind every column and transitions
+          its opacity between sections for a liquid-glass feel. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 transition-[background] duration-500 ease-out"
+        style={{
+          background: `
+            radial-gradient(55% 42% at 100% 0%, color-mix(in oklab, var(--section-accent) 18%, transparent) 0%, transparent 65%),
+            radial-gradient(50% 40% at 0% 100%, color-mix(in oklab, var(--section-accent) 14%, transparent) 0%, transparent 60%),
+            radial-gradient(80% 60% at 50% 50%, color-mix(in oklab, var(--section-accent) 5%, transparent) 0%, transparent 70%),
+            var(--bg-primary)
+          `,
+        }}
+      />
+
       {/* ── Left Sidebar (desktop) ──
           Floats as a card: offset from viewport edges with margins,
           rounded corners and shadow, instead of sitting flush against
           the window. Sticky inside the flex row so it stays reachable. */}
       <aside
         className="sticky top-3 hidden h-[calc(100vh-1.5rem)] w-[260px] shrink-0 flex-col overflow-y-auto rounded-2xl px-4 py-5 lg:flex glass-heavy shadow-xl"
-        style={{ margin: '0.75rem 0 0.75rem 0.75rem', border: '1px solid var(--glass-border)' }}
+        style={{
+          margin: '0.75rem 0 0.75rem 0.75rem',
+          border:
+            '1px solid color-mix(in oklab, var(--section-accent) 22%, var(--glass-border))',
+          backgroundImage:
+            'radial-gradient(70% 50% at 100% 0%, color-mix(in oklab, var(--section-accent) 10%, transparent) 0%, transparent 70%)',
+        }}
       >
         <Brand lang={lang} />
         {/* AreaSwitcher moved into Live Circle's chip-filter bar as a
@@ -230,19 +259,24 @@ export function AppShell() {
       <main
         ref={mainRef}
         className="safe-bottom isolate relative min-w-0 flex-1 px-4 pb-4 lg:sticky lg:top-3 lg:my-3 lg:h-[calc(100vh-1.5rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:px-6 lg:pb-8 lg:pt-5 lg:shadow-xl lg:glass-heavy"
-        style={
-          {
-            borderColor: 'var(--glass-border)',
-            '--section-accent':
-              NAV.find((n) => n.id === section)?.color ?? 'var(--brand-emerald)',
-          } as React.CSSProperties
-        }
+        style={{
+          borderColor:
+            'color-mix(in oklab, var(--section-accent) 28%, var(--glass-border))',
+          // Desktop card gets a subtle inner accent tint and a soft glow
+          // outside, so even over the global background it reads as part
+          // of the section's theme without washing out content.
+          boxShadow:
+            '0 1px 2px rgba(0,0,0,0.08), 0 24px 48px -24px color-mix(in oklab, var(--section-accent) 55%, transparent)',
+          backgroundImage: `
+            radial-gradient(80% 50% at 50% 0%, color-mix(in oklab, var(--section-accent) 10%, transparent) 0%, transparent 70%)
+          `,
+        }}
       >
         {/* Section accent band — thin gradient strip across the top of
             the content column, picking up the section's brand colour. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-[3px] opacity-80 lg:rounded-t-2xl"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[3px] opacity-90 lg:rounded-t-2xl"
           style={{
             background:
               'linear-gradient(90deg, transparent 0%, var(--section-accent) 25%, var(--section-accent) 75%, transparent 100%)',
@@ -268,8 +302,14 @@ export function AppShell() {
             visibly distinct on mobile where the SectionTitle (desktop
             only) isn't shown. */}
         <div
-          className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 bg-bg-primary px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
+          className="sticky top-0 z-30 -mx-4 mb-4 flex items-center justify-between gap-2 px-4 pb-2 pt-2 backdrop-blur-md lg:hidden"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)',
+            background:
+              'linear-gradient(180deg, color-mix(in oklab, var(--section-accent) 12%, var(--bg-primary)) 0%, var(--bg-primary) 100%)',
+            borderBottom:
+              '1px solid color-mix(in oklab, var(--section-accent) 22%, transparent)',
+          }}
         >
           <div className="flex min-w-0 items-center gap-2">
             <Brand compact lang={lang} />
@@ -334,7 +374,13 @@ export function AppShell() {
           matching the left sidebar. */}
       <aside
         className="sticky top-3 hidden h-[calc(100vh-1.5rem)] w-[340px] shrink-0 overflow-y-auto rounded-2xl px-4 py-5 xl:block glass-heavy shadow-xl"
-        style={{ margin: '0.75rem 0.75rem 0.75rem 0', border: '1px solid var(--glass-border)' }}
+        style={{
+          margin: '0.75rem 0.75rem 0.75rem 0',
+          border:
+            '1px solid color-mix(in oklab, var(--section-accent) 22%, var(--glass-border))',
+          backgroundImage:
+            'radial-gradient(70% 50% at 0% 0%, color-mix(in oklab, var(--section-accent) 10%, transparent) 0%, transparent 70%)',
+        }}
       >
         <RightRail onNavigate={switchSection} />
       </aside>
