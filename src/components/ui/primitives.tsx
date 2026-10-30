@@ -112,7 +112,7 @@ export function Card({
         'rounded-card transition-all duration-300 ease-spring-smooth',
         glass
           ? 'glass-card'
-          : 'border border-[var(--border-subtle)] bg-bg-surface',
+          : 'bg-bg-surface section-bordered',
         glow && 'border-glow',
         className,
       )}

@@ -563,7 +563,9 @@ function Brand({ compact = false, lang = 'en' }: { compact?: boolean; lang?: imp
           <div className="-mt-0.5 text-[10px] text-content-muted">{t('tagline', lang)}</div>
         </div>
       )}
-      {compact && <span className="text-[15px] font-extrabold tracking-tight gradient-text">VeriPulse</span>}
+      {/* Compact mode (mobile top bar) shows the logo mark only; the
+          section accent chip beside it carries the page header, so the
+          wordmark would be redundant on a narrow bar. */}
     </div>
   );
 }
