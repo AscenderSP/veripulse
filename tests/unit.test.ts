@@ -7,11 +7,19 @@ import { clampSummary, enforceSixtyWords, wordCount } from '../src/lib/gemini.ts
 import { ownershipIdentityHash, maskIdentifier } from '../src/lib/crypto.ts';
 import type { ReporterDispatch } from '../src/lib/types.ts';
 
-test('consensus: 5 hoax flags from trust>80 users quarantine a fresh story', () => {
+test('consensus: 5 hoax flags from trust>80 sentinels quarantine a fresh story', () => {
   let cred = 50;
   let stage: ConsensusStage = 'tier_1';
   for (let i = 0; i < 5; i++) {
-    cred = nextCredibility(cred, 'hoax', voteWeight(82, null, false));
+    const weight = voteWeight({
+      trustScore: 82,
+      tier: 'sentinel_t1',
+      isJournalist: false,
+      isVerifiedOwner: false,
+      distanceKm: null,
+      priorVoteCount: i,
+    });
+    cred = nextCredibility(cred, 'hoax', weight);
     stage = nextStage(stage, cred);
   }
   assert.ok(cred < 35, `credibility ${cred} should be < 35`);
@@ -23,11 +31,54 @@ test('consensus: credibility is clamped to [5, 99]', () => {
   assert.equal(nextCredibility(95, 'real', 10), 99);
 });
 
-test('consensus: weight multipliers (geo 1.5 within 10 km, owner 3x)', () => {
-  assert.equal(voteWeight(50, null, false), 1);
-  assert.equal(voteWeight(50, 9.9, false), 1.5);
-  assert.equal(voteWeight(50, 10.1, false), 1);
-  assert.equal(voteWeight(100, 2, true), 9);
+test('consensus: role spread anchors — journalist -3, senior -1.5, public -1 at 80% AI base', () => {
+  const base: Omit<Parameters<typeof voteWeight>[0], 'isJournalist' | 'tier'> = {
+    trustScore: 50,
+    isVerifiedOwner: false,
+    distanceKm: null,
+    priorVoteCount: 20, // past the early-vote bonus window
+  };
+  const journalist = voteWeight({ ...base, isJournalist: true, tier: 'public' });
+  const senior     = voteWeight({ ...base, isJournalist: false, tier: 'sentinel_t1' });
+  const pub        = voteWeight({ ...base, isJournalist: false, tier: 'public' });
+
+  // Each shift = K(1.0) * vnum_hoax(-1.5) * weight.
+  const applied = (w: number) => Math.round(nextCredibility(80, 'hoax', w) * 100) / 100;
+  assert.equal(applied(journalist), 77.00);
+  assert.equal(applied(senior), 78.50);
+  assert.equal(applied(pub), 79.00); // 80 - (1.5 * 0.67) ≈ 78.995, rounds to 79.00
+});
+
+test('consensus: multipliers stack (geo 1.5x within 10km, owner 2x, early 1.5x for first 5)', () => {
+  const ctx = {
+    trustScore: 50,
+    tier: 'sentinel_t1' as const,
+    isJournalist: false,
+    isVerifiedOwner: false,
+    distanceKm: null as number | null,
+    priorVoteCount: 20,
+  };
+  // senior sentinel, trust 50, nothing stacked → role 1.0 * trust 1 * 1 * 1 * 1 = 1
+  assert.equal(voteWeight(ctx), 1);
+  // within 10km → 1.5x
+  assert.equal(voteWeight({ ...ctx, distanceKm: 9.9 }), 1.5);
+  // at 10.1km → no bonus
+  assert.equal(voteWeight({ ...ctx, distanceKm: 10.1 }), 1);
+  // verified owner → 2x
+  assert.equal(voteWeight({ ...ctx, isVerifiedOwner: true }), 2);
+  // first vote on story (prior count 0) → early 1.5x
+  assert.equal(voteWeight({ ...ctx, priorVoteCount: 0 }), 1.5);
+  // every bonus lit, trust capped at 1.5x: 1.0 * 1.5 * 1.5 * 1.5 * 2 = 6.75
+  assert.equal(
+    voteWeight({
+      ...ctx,
+      trustScore: 100,
+      distanceKm: 2,
+      isVerifiedOwner: true,
+      priorVoteCount: 0,
+    }),
+    6.75,
+  );
 });
 
 test('consensus: stage transitions', () => {
@@ -202,11 +253,21 @@ test('news hub: drill-down details and credibility voting logic', async () => {
   assert.ok(gaganyaan?.timeline && gaganyaan.timeline.length >= 3, 'Chronological timeline has updates');
   assert.ok(gaganyaan?.c2paMetadata?.signatureHash, 'Cryptographic C2PA metadata signature present');
   assert.ok(gaganyaan?.communityNotes && gaganyaan.communityNotes.length > 0, 'Has verified community field notes');
-  assert.ok(gaganyaan?.realVotes && gaganyaan.realVotes > 0, 'Has active vote counters');
+  // Vote counters exist on the shape but seed at 0 — fabricated counts
+  // violated the "no fake vote counts" rule and were cleared.
+  assert.equal(gaganyaan?.realVotes, 0, 'Demo article seeds with 0 real votes');
+  assert.equal(gaganyaan?.hoaxVotes, 0, 'Demo article seeds with 0 hoax votes');
 
   // Test live credibility voting recalculation
   const initialCred = 80;
-  const weight = voteWeight(90, null, true); // Trust 90, verified owner
+  const weight = voteWeight({
+    trustScore: 90,
+    tier: 'sentinel_t1',
+    isJournalist: false,
+    isVerifiedOwner: true,
+    distanceKm: null,
+    priorVoteCount: 20,
+  });
   const updatedCred = nextCredibility(initialCred, 'real', weight);
   assert.ok(updatedCred > initialCred, 'Credibility increases with positive consensus vote');
   const hoaxCred = nextCredibility(initialCred, 'hoax', weight);

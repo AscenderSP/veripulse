@@ -230,9 +230,18 @@ export function Feed({
     const prev = demoVotes.current[story.id];
     if (prev?.vote === vote) return { credibility: story.credibility_score, stage: story.rollout_stage };
 
-    const weight = voteWeight(profile?.trust_score ?? 80, null, profile?.is_ownership_verified ?? false);
+    const weight = voteWeight({
+      trustScore: profile?.trust_score ?? 50,
+      tier: (profile?.tier as 'sentinel_t1' | 'validator_t2' | 'public' | undefined) ?? 'public',
+      isJournalist: profile?.is_journalist_verified ?? false,
+      isVerifiedOwner: profile?.is_ownership_verified ?? false,
+      distanceKm: null,
+      priorVoteCount: 0,
+    });
     let cred = story.credibility_score;
-    if (prev) cred -= 3.5 * voteScalar(prev.vote) * prev.weight;
+    // Back out the previous demo delta with the same K=1.0 base used
+    // in cast_weighted_vote (migration 0013).
+    if (prev) cred -= 1.0 * voteScalar(prev.vote) * prev.weight;
     cred = nextCredibility(cred, vote, weight);
     const stage = nextStage(story.rollout_stage, cred);
     demoVotes.current[story.id] = { vote, weight };

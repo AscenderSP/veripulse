@@ -397,19 +397,32 @@ export function NewsHub() {
     const isTogglingOff = previousVote === vote;
     const newVote = isTogglingOff ? null : vote;
 
-    // Calculate user's consensus weight
-    const userTrust = profile?.trust_score ?? 80;
-    const isOwner = profile?.is_ownership_verified ?? false;
-    const weight = voteWeight(userTrust, null, isOwner);
+    // Build the full voter context so the optimistic shift mirrors what
+    // the server's cast_weighted_vote RPC will land at. Distance is left
+    // null since article has no geom on the client — the server applies
+    // the 10km bonus from the real home_lat/lng.
+    const article = articles.find((a) => a.id === articleId);
+    const priorVoteCount =
+      (article?.realVotes ?? 0) +
+      (article?.hoaxVotes ?? 0) +
+      (article?.contextVotes ?? 0);
+    const weight = voteWeight({
+      trustScore: profile?.trust_score ?? 50,
+      tier: (profile?.tier as 'sentinel_t1' | 'validator_t2' | 'public' | undefined) ?? 'public',
+      isJournalist: profile?.is_journalist_verified ?? false,
+      isVerifiedOwner: profile?.is_ownership_verified ?? false,
+      distanceKm: null,
+      priorVoteCount,
+    });
 
     setArticles((prev) =>
       prev.map((art) => {
         if (art.id !== articleId) return art;
 
         let newCredibility = art.credibilityScore;
-        let realCount = art.realVotes ?? 100;
-        let hoaxCount = art.hoaxVotes ?? 5;
-        let contextCount = art.contextVotes ?? 10;
+        let realCount = art.realVotes ?? 0;
+        let hoaxCount = art.hoaxVotes ?? 0;
+        let contextCount = art.contextVotes ?? 0;
 
         if (previousVote === 'real') realCount = Math.max(0, realCount - 1);
         if (previousVote === 'hoax') hoaxCount = Math.max(0, hoaxCount - 1);

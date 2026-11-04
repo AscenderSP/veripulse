@@ -95,19 +95,24 @@ describe('User Flow 1: News Reader & Credibility Consensus', () => {
 
   test('User participates in Credibility Voting (Real vs Hoax)', () => {
     const story = DEMO_NEWS_ARTICLES[0];
-    const initialReal = story.realVotes;
-    const initialHoax = story.hoaxVotes;
+    const initialReal = story.realVotes ?? 0;
     const initialCred = story.credibilityScore;
 
-    // User upvotes as verified citizen (trust = 85, verified owner)
-    const weight = voteWeight(85, null, true);
+    // Senior sentinel with verified ownership and an early vote.
+    const weight = voteWeight({
+      trustScore: 85,
+      tier: 'sentinel_t1',
+      isJournalist: false,
+      isVerifiedOwner: true,
+      distanceKm: null,
+      priorVoteCount: initialReal,
+    });
     const updatedCred = nextCredibility(initialCred, 'real', weight);
     const simulatedReal = initialReal + 1;
 
     assert.ok(updatedCred >= initialCred, 'Credibility increases after positive consensus vote');
     assert.equal(simulatedReal, initialReal + 1);
 
-    // Another user flags as hoax
     const hoaxCred = nextCredibility(updatedCred, 'hoax', weight);
     assert.ok(hoaxCred < updatedCred, 'Credibility decreases when flagged as hoax');
   });
