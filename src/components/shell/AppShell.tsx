@@ -386,7 +386,7 @@ export function AppShell() {
                 <ArrowLeft size={18} /> Back
               </button>
               <Card className="p-4">
-                <Composer autoCapture onSubmitted={() => switchSection(prevSection === 'compose' ? 'feed' : prevSection)} />
+                <Composer onSubmitted={() => switchSection(prevSection === 'compose' ? 'feed' : prevSection)} />
               </Card>
             </div>
           )}

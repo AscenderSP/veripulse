@@ -12,8 +12,24 @@ import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 
+// Server returns these error codes with a `message` field; fall back to this
+// table when the server didn't supply one so the user sees something useful.
+const SERVER_ERROR_FALLBACK: Record<string, string> = {
+  AUTH_REQUIRED: 'Sign in to publish a report.',
+  CAPTCHA_REQUIRED: 'Captcha check failed — please try again.',
+  CAPTCHA_REPLAYED: 'Captcha already used — refresh and retry.',
+  REPORT_TOO_SHORT: 'Your report is too short. Add more detail (20+ characters).',
+  DAILY_LIMIT_REACHED: 'You’ve hit today’s posting limit. Try again in 24h.',
+  POST_FORBIDDEN: 'Your account tier can’t publish reports right now.',
+  JOURNALIST_PENDING_LIMIT_REACHED: 'Pending journalists post at the Citizen rate — limit reached.',
+  SUBSCRIPTION_EXPIRED: 'Your Pro subscription has lapsed. Dropped to the free limit for now.',
+  INGEST_FAILED: 'We couldn’t save your report. Please retry.',
+  SERVER_ERROR: 'Server error — try again in a moment.',
+};
+
 /** Uploads the captured image to evidence/{uid}/… and returns its public URL. */
 async function uploadEvidence(uid: string, media: VerifiedMedia): Promise<string> {
+  if (!media.dataUrl) throw new Error('No image data to upload.');
   const blob = await (await fetch(media.dataUrl)).blob();
   const ext = media.mime.split('/')[1] || 'jpg';
   const path = `${uid}/${Date.now()}.${ext}`;
@@ -51,6 +67,10 @@ export function Composer({
   async function capture() {
     try {
       const m = await captureVerifiedMedia();
+      if (!m.dataUrl) {
+        setMsg('No image captured.');
+        return;
+      }
       setMedia(m);
       setMsg(m.lat ? 'Photo captured with location lock.' : 'Photo captured — location unavailable.');
     } catch {
@@ -59,6 +79,9 @@ export function Composer({
   }
 
   useEffect(() => {
+    // Only auto-opens when a caller explicitly passes `autoCapture`. The
+    // default landing path through the Compose tab does NOT pass it, so the
+    // camera no longer fires unprompted every time the panel mounts.
     if (autoCapture && !autoFired.current) {
       autoFired.current = true;
       capture();
@@ -66,8 +89,17 @@ export function Composer({
   }, [autoCapture]);
 
   async function submit() {
-    if (words < 5) {
-      setMsg('Add a bit more detail before posting.');
+    // Mirror the server's REPORT_TOO_SHORT check (20+ characters) so a reader
+    // never gets a surprising rejection after the client said OK.
+    if (text.trim().length < 20) {
+      setMsg('Add more detail before posting (at least 20 characters).');
+      return;
+    }
+    // Make the auth gate loud: if the user isn't signed in, say so instead of
+    // silently opening the sheet and letting the Post button look dead.
+    if (isSupabaseConfigured() && !user) {
+      setMsg('Please sign in to publish your report.');
+      requireAuth(() => undefined); // opens the sign-in sheet
       return;
     }
     const captcha = await requireHuman({ reason: 'Confirm you are human to publish this report.' });
@@ -82,26 +114,35 @@ export function Composer({
         await new Promise((r) => setTimeout(r, 900));
         setMsg('Demo mode — connect Supabase to publish. Report looks good!');
       } else {
-        const res = await requireAuth(async () => {
-          const mediaUrl = media && user ? await uploadEvidence(user.id, media) : null;
-          return apiFetch('/api/stories/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text,
-              location_name: place.trim() || (media?.lat ? 'Pinned location' : 'Unknown'),
-              lat: media?.lat ?? null,
-              lng: media?.lng ?? null,
-              media_url: mediaUrl,
-              media_type: 'image',
-              captured_at: media?.capturedAt ?? null,
-              captcha_token: captcha.token,
-            }),
-          });
+        let mediaUrl: string | null = null;
+        try {
+          mediaUrl = media && user ? await uploadEvidence(user.id, media) : null;
+        } catch (uploadErr) {
+          const detail = uploadErr instanceof Error ? uploadErr.message : 'upload failed';
+          setMsg(`Image upload failed: ${detail}. You can retry, or post without the photo.`);
+          setBusy(false);
+          return;
+        }
+        const res = await apiFetch('/api/stories/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            location_name: place.trim() || (media?.lat ? 'Pinned location' : 'Unknown'),
+            lat: media?.lat ?? null,
+            lng: media?.lng ?? null,
+            media_url: mediaUrl,
+            media_type: 'image',
+            captured_at: media?.capturedAt ?? null,
+            captcha_token: captcha.token,
+          }),
         });
-        if (!res) return;
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message ?? data.error ?? 'Failed');
+        const data = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (!res.ok) {
+          const code = typeof data.error === 'string' ? data.error : '';
+          const fallback = SERVER_ERROR_FALLBACK[code] ?? `Couldn’t publish (${code || res.status}).`;
+          throw new Error((data.message as string) || fallback);
+        }
         setMsg(
           data.action === 'merged_timeline'
             ? 'Merged into an existing story as a timeline update.'
@@ -147,7 +188,11 @@ export function Composer({
           <Camera size={15} />
           {media
             ? (lang === 'bn' ? 'ছবি পরিবর্তন' : lang === 'hi' ? 'फोटो बदलें' : 'Replace photo')
-            : (lang === 'bn' ? 'যাচাইকৃত ছবি তুলুন' : lang === 'hi' ? 'सत्यापित फोटो लें' : 'Capture verified photo')}
+            : (lang === 'bn'
+                ? 'ছবি যোগ করুন (ঐচ্ছিক)'
+                : lang === 'hi'
+                  ? 'फोटो जोड़ें (वैकल्पिक)'
+                  : 'Add photo (optional)')}
           {media?.lat && <MapPin size={13} className="text-brand-emerald" />}
         </button>
         <div className="flex-1">
