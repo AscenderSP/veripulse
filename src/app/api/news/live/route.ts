@@ -98,7 +98,7 @@ export async function GET() {
       const twelveHoursAgo = new Date(now - 12 * 60 * 60 * 1000).toISOString();
       const { data } = await sb
         .from('stories')
-        .select('*')
+        .select('id, titles, summaries, media_url, category, source, source_name, source_url, source_license, authenticity_score, authenticity_flags, created_at')
         .eq('rollout_stage', 'public')
         .gte('created_at', twelveHoursAgo)
         .order('created_at', { ascending: false })
@@ -111,7 +111,13 @@ export async function GET() {
           description: typeof s.summaries === 'object' ? (s.summaries?.en || s.summaries?.bn || s.summaries?.hi || '').slice(0, 200) : s.summaries,
           // Deep-link into the app's story view rather than the media CDN.
           url: `/?story=${encodeURIComponent(s.id)}`,
-          source: s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel',
+          // Publisher name goes on the card; the canonical article URL lets
+          // the reader go to the original source.
+          source: s.source_name ?? (s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel'),
+          sourceUrl: s.source_url ?? null,
+          sourceLicense: s.source_license ?? null,
+          authenticityScore: s.authenticity_score ?? null,
+          authenticityFlags: Array.isArray(s.authenticity_flags) ? s.authenticity_flags : [],
           image: s.media_url || getReferenceImage(s.category),
           publishedAt: s.created_at,
           category: (s.category || 'general').toLowerCase(),

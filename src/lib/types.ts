@@ -2,8 +2,18 @@ export interface LiveNewsItem {
   id: string;
   title: string;
   description: string;
+  /** Internal deep-link into the app's story view. */
   url: string;
+  /** Publisher name — e.g. "BBC News", "PIB India". */
   source: string;
+  /** Canonical URL of the original article on the publisher's site. */
+  sourceUrl?: string | null;
+  /** Licensing posture: public_domain | cc_by_nd | fair_use_summary | wire_service … */
+  sourceLicense?: string | null;
+  /** AI-derived 0-100 authenticity score (null when not yet scored). */
+  authenticityScore?: number | null;
+  /** Short flag codes from the authenticity pass, e.g. ["well_sourced","attributed"]. */
+  authenticityFlags?: string[];
   image: string | null;
   publishedAt: string;
   category: string;
@@ -242,6 +252,15 @@ export interface NewsArticle {
   ingestionStatus?: 'buffer_active' | 'synthesized' | 'published';
   bufferExpiresAt?: string;
   dispatchesCount?: number;
+
+  // Wire-source attribution + AI authenticity triage (populated by the
+  // RSS crawler; absent on citizen reports).
+  /** Licensing posture tag — public_domain | cc_by_nd | fair_use_summary | wire_service … */
+  sourceLicense?: string | null;
+  /** Gemini-derived 0-100 authenticity score (null when not yet scored). */
+  authenticityScore?: number | null;
+  /** Short flag codes from the authenticity pass. */
+  authenticityFlags?: string[];
 }
 
 export interface OwnershipVerification {

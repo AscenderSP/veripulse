@@ -121,6 +121,52 @@ function ArticleImage({
   );
 }
 
+/**
+ * Small inline badge showing the Gemini-derived authenticity score + risk.
+ * Null-safe: renders nothing when no score has been computed yet (citizen
+ * reports, or wire stories ingested before the authenticity pass landed).
+ */
+function AuthenticityBadge({
+  score,
+  flags,
+  compact = false,
+}: {
+  score?: number | null;
+  flags?: string[];
+  compact?: boolean;
+}) {
+  if (score == null || Number.isNaN(score)) return null;
+  const risk: 'high' | 'medium' | 'low' = score >= 80 ? 'high' : score >= 55 ? 'medium' : 'low';
+  // "High" authenticity = emerald, "low" = rose. Rendered intentionally as a
+  // separate chip so readers see both the publisher AND the AI triage result.
+  const tone =
+    risk === 'high'
+      ? 'text-brand-emerald ring-brand-emerald/40 bg-brand-emerald/10'
+      : risk === 'medium'
+        ? 'text-brand-amber ring-brand-amber/40 bg-brand-amber/10'
+        : 'text-brand-rose ring-brand-rose/40 bg-brand-rose/10';
+  const Icon = risk === 'high' ? ShieldCheck : risk === 'medium' ? HelpCircle : AlertTriangle;
+  const label = risk === 'high' ? 'Verified' : risk === 'medium' ? 'Mixed signals' : 'Unverified';
+  const flagSummary = (flags ?? []).slice(0, 3).join(', ');
+  const title = flagSummary
+    ? `AI authenticity score ${score.toFixed(0)}/100 — ${label}. Signals: ${flagSummary}`
+    : `AI authenticity score ${score.toFixed(0)}/100 — ${label}.`;
+  return (
+    <span
+      title={title}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-pill ring-1 backdrop-blur-sm',
+        compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]',
+        'font-semibold',
+        tone,
+      )}
+    >
+      <Icon size={compact ? 10 : 11} />
+      {label} · {score.toFixed(0)}
+    </span>
+  );
+}
+
 function mapStoryToArticle(s: any): NewsArticle {
   const catRaw = (s.category || 'Politics').toLowerCase();
   let category: NewsCategory = 'politics';
@@ -146,7 +192,7 @@ function mapStoryToArticle(s: any): NewsArticle {
     id: s.id,
     category,
     categoryName: s.category || 'National News',
-    tags: [s.category || 'News', s.location_name || 'India', s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel'],
+    tags: [s.category || 'News', s.location_name || 'India', s.source_name || (s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel')],
     titles: {
       en: enTitle || 'Live Wire Update',
       bn: bnTitle || enTitle || 'লাইভ আপডেট',
@@ -157,18 +203,26 @@ function mapStoryToArticle(s: any): NewsArticle {
       bn: bnSummary || enSummary || '',
       hi: hiSummary || enSummary || '',
     },
-    source: s.source === 'rss' ? 'Verified Wire Agency' : 'Citizen Sentinel',
+    // Publisher name + canonical URL from the RSS catalog. Falls back to
+    // generic labels for citizen reports which don't have an external source.
+    source: s.source_name || (s.source === 'rss' ? 'Verified Wire Agency' : 'Citizen Sentinel'),
+    sourceUrl: s.source_url || undefined,
     publishedAt: s.created_at || new Date().toISOString(),
     mediaUrl: s.media_url || undefined,
     c2paVerified: Boolean(s.c2pa_verified),
     credibilityScore: Number(s.credibility_score) || 82,
     aiProbabilityScore: Number(s.ai_probability_score) || 8,
+    authenticityScore: s.authenticity_score != null ? Number(s.authenticity_score) : null,
+    authenticityFlags: Array.isArray(s.authenticity_flags) ? s.authenticity_flags : [],
+    sourceLicense: s.source_license || null,
     readingTimeMinutes: 1,
     locationName: s.location_name || 'National',
     keyTakeaways: [
       enSummary ? enSummary.slice(0, 100) + '...' : 'Verified wire news dispatch',
-      `Source: ${s.source === 'rss' ? 'Wire Agency Wire' : 'Verified Sentinel'}`,
-      `Credibility Index: ${s.credibility_score || 82}%`,
+      `Source: ${s.source_name || (s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel')}`,
+      s.authenticity_score != null
+        ? `Authenticity: ${Number(s.authenticity_score).toFixed(0)}%`
+        : `Credibility Index: ${s.credibility_score || 82}%`,
     ],
     realVotes: 12,
     hoaxVotes: 1,
@@ -1080,7 +1134,7 @@ export function NewsHub() {
 
                   {/* Card Footer */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-content-muted">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-content-primary">Source:</span>
                       {article.sourceUrl ? (
                         <a
@@ -1095,6 +1149,11 @@ export function NewsHub() {
                       ) : (
                         <span>{article.source}</span>
                       )}
+                      <AuthenticityBadge
+                        score={article.authenticityScore}
+                        flags={article.authenticityFlags}
+                        compact
+                      />
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1984,7 +2043,7 @@ function NewsDrillDownPage({
               </p>
 
               <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2 text-xs text-content-muted">
+                <div className="flex items-center gap-2 text-xs text-content-muted flex-wrap">
                   <span>Source:</span>
                   {article.sourceUrl ? (
                     <a
@@ -1998,6 +2057,10 @@ function NewsDrillDownPage({
                   ) : (
                     <span>{article.source}</span>
                   )}
+                  <AuthenticityBadge
+                    score={article.authenticityScore}
+                    flags={article.authenticityFlags}
+                  />
                 </div>
                 <AudioReadout text={summaryText} lang={lang} />
               </div>
