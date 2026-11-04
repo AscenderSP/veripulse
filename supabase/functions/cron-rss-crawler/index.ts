@@ -470,6 +470,10 @@ Item: """${raw}"""`;
                   authenticity_score: authenticity.score,
                   authenticity_flags: authenticity.flags,
                   authenticity_checked_at: new Date().toISOString(),
+                  // Seed credibility from the AI authenticity score so the
+                  // listing reflects the model's first read. Citizen votes
+                  // shift it from there via consume_vote.
+                  credibility_score: authenticity.score,
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                 })
@@ -513,6 +517,7 @@ Item: """${raw}"""`;
                     authenticity_score: authenticity.score,
                     authenticity_flags: authenticity.flags,
                     authenticity_checked_at: new Date().toISOString(),
+                    credibility_score: authenticity.score,
                   })
                   .eq('id', row.story_id);
               }

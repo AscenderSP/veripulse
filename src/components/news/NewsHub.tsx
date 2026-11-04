@@ -210,8 +210,16 @@ function mapStoryToArticle(s: any): NewsArticle {
     publishedAt: s.created_at || new Date().toISOString(),
     mediaUrl: s.media_url || undefined,
     c2paVerified: Boolean(s.c2pa_verified),
-    credibilityScore: Number(s.credibility_score) || 82,
-    aiProbabilityScore: Number(s.ai_probability_score) || 8,
+    // Credibility baseline: AI authenticity score when the crawler has
+    // scored the story; else whatever the DB holds; else a true-neutral 50.
+    // Votes shift this from here — no hardcoded 82 lift.
+    credibilityScore:
+      s.authenticity_score != null
+        ? Number(s.authenticity_score)
+        : s.credibility_score != null
+          ? Number(s.credibility_score)
+          : 50,
+    aiProbabilityScore: Number(s.ai_probability_score) || 0,
     authenticityScore: s.authenticity_score != null ? Number(s.authenticity_score) : null,
     authenticityFlags: Array.isArray(s.authenticity_flags) ? s.authenticity_flags : [],
     sourceLicense: s.source_license || null,
@@ -222,11 +230,14 @@ function mapStoryToArticle(s: any): NewsArticle {
       `Source: ${s.source_name || (s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel')}`,
       s.authenticity_score != null
         ? `Authenticity: ${Number(s.authenticity_score).toFixed(0)}%`
-        : `Credibility Index: ${s.credibility_score || 82}%`,
+        : 'Awaiting authenticity scoring',
     ],
-    realVotes: 12,
-    hoaxVotes: 1,
-    contextVotes: 1,
+    // Real vote counts not yet aggregated server-side — surface 0 rather
+    // than fake defaults; the consensus RPC updates credibility directly.
+    realVotes: 0,
+    hoaxVotes: 0,
+    contextVotes: 0,
+    totalImpactEarningsInr: 0,
     stage: s.rollout_stage,
     detailedAnalysis: enSummary || undefined,
   };
@@ -580,7 +591,7 @@ export function NewsHub() {
             timeline: [latestUpdateTimelineItem, olderTimelineItem, ...(art.timeline ?? [])],
             contributors: [...(art.contributors ?? []), newDispatch],
             dispatchesCount: (art.dispatchesCount ?? 1) + 1,
-            totalImpactEarningsInr: (art.totalImpactEarningsInr ?? 350) + 180,
+            totalImpactEarningsInr: (art.totalImpactEarningsInr ?? 0) + 180,
             keyTakeaways: [
               `Latest update from ${reporterName} at ${data.location}`,
               ...(art.keyTakeaways ?? []),
@@ -643,11 +654,13 @@ export function NewsHub() {
       publishedAt: new Date().toISOString(),
       mediaUrl: data.mediaUrl || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=600&q=80',
       c2paVerified: true,
-      credibilityScore: 92,
-      aiProbabilityScore: 2,
+      // Fresh citizen dispatch — no votes yet, no AI scoring run.
+      // Start at a true-neutral prior so the meter reflects "unverified".
+      credibilityScore: 50,
+      aiProbabilityScore: 0,
       readingTimeMinutes: 1,
       locationName: data.location,
-      realVotes: 1,
+      realVotes: 0,
       hoaxVotes: 0,
       contextVotes: 0,
       stage: 'tier_1',
@@ -673,8 +686,7 @@ export function NewsHub() {
       },
       leadReporter: initialDispatch,
       contributors: [],
-      impactScore: 88,
-      totalImpactEarningsInr: 450,
+      totalImpactEarningsInr: 0,
       ingestionStatus: 'buffer_active',
       bufferExpiresAt,
       dispatchesCount: 1,
@@ -902,8 +914,12 @@ export function NewsHub() {
           const summaryText = article.summaries[lang] ?? article.summaries.en;
           const titleText = article.titles[lang] ?? article.titles.en;
           const currentVote = userVotes[article.id];
-          const totalVotes = (article.realVotes ?? 100) + (article.hoaxVotes ?? 5) + (article.contextVotes ?? 10);
-          const realPercent = Math.round(((article.realVotes ?? 100) / totalVotes) * 100);
+          const totalVotes = (article.realVotes ?? 0) + (article.hoaxVotes ?? 0) + (article.contextVotes ?? 0);
+          // Meter reflects live credibility until votes build up, then
+          // weights by the real-vote share so the bar follows the crowd.
+          const realPercent = totalVotes > 0
+            ? Math.round(((article.realVotes ?? 0) / totalVotes) * 100)
+            : Math.round(article.credibilityScore);
           const isBufferActive = article.ingestionStatus === 'buffer_active';
 
           return (
@@ -1084,11 +1100,15 @@ export function NewsHub() {
                   >
                     <div className="flex items-center justify-between gap-2 text-[10px] text-content-muted">
                       <span className="font-mono">
-                        {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+                        {totalVotes === 0
+                          ? 'No votes yet'
+                          : `${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}`}
                       </span>
-                      <span>
-                        Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
-                      </span>
+                      {(article.totalImpactEarningsInr ?? 0) > 0 && (
+                        <span>
+                          Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr!))}
+                        </span>
+                      )}
                     </div>
 
                     {/* Meter + % live on their own row at every width;
@@ -1992,8 +2012,10 @@ function NewsDrillDownPage({
   const [activeTab, setActiveTab] = useState(initialTab);
   const summaryText = article.summaries[lang] ?? article.summaries.en;
   const titleText = article.titles[lang] ?? article.titles.en;
-  const totalVotes = (article.realVotes ?? 100) + (article.hoaxVotes ?? 5) + (article.contextVotes ?? 10);
-  const realPercent = Math.round(((article.realVotes ?? 100) / totalVotes) * 100);
+  const totalVotes = (article.realVotes ?? 0) + (article.hoaxVotes ?? 0) + (article.contextVotes ?? 0);
+  const realPercent = totalVotes > 0
+    ? Math.round(((article.realVotes ?? 0) / totalVotes) * 100)
+    : Math.round(article.credibilityScore);
 
   const allDispatches = [
     ...(article.leadReporter ? [article.leadReporter] : []),
@@ -2077,9 +2099,15 @@ function NewsDrillDownPage({
                 Citizen Consensus
               </span>
               <span>
-                <span className="font-mono text-content-secondary">{totalVotes} votes</span>
-                <span className="mx-1.5">·</span>
-                Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}
+                <span className="font-mono text-content-secondary">
+                  {totalVotes === 0 ? 'No votes yet' : `${totalVotes} votes`}
+                </span>
+                {(article.totalImpactEarningsInr ?? 0) > 0 && (
+                  <>
+                    <span className="mx-1.5">·</span>
+                    Impact Pool · {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr!))}
+                  </>
+                )}
               </span>
             </div>
 
@@ -2230,8 +2258,16 @@ function NewsDrillDownPage({
                   </p>
                 </div>
                 <div className="text-right font-mono">
-                  <div className="text-brand-amber font-bold">Pool: {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr ?? 450))}</div>
-                  <div className="text-[10px] text-content-muted">Impact Score: {article.impactScore ?? 92}/100</div>
+                  {(article.totalImpactEarningsInr ?? 0) > 0 && (
+                    <div className="text-brand-amber font-bold">
+                      Pool: {formatVPCoins(inrToVPCoins(article.totalImpactEarningsInr!))}
+                    </div>
+                  )}
+                  {typeof article.impactScore === 'number' && (
+                    <div className="text-[10px] text-content-muted">
+                      Impact Score: {article.impactScore}/100
+                    </div>
+                  )}
                 </div>
               </div>
 
