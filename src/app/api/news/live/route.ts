@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import type { LiveNewsItem } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/demoData';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getReferenceImage, isNewsExpired } from '@/lib/referenceImages';
+import { getReferenceImage } from '@/lib/referenceImages';
+import { rateLimit, rateLimitKey } from '@/lib/rateLimit';
 export type { LiveNewsItem };
 
 // In-memory cache for ultra-fast < 5ms response
@@ -68,6 +70,15 @@ function getFreshFallbackNews(): LiveNewsItem[] {
 export async function GET() {
   const now = Date.now();
 
+  // Per-IP throttle so a single caller can't force cache rebuilds when the
+  // module-level cache expires.
+  const h = await headers();
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? h.get('x-real-ip') ?? 'unknown';
+  const dec = rateLimit(rateLimitKey(ip, 'news-live'), 120, 60_000);
+  if (!dec.allowed) {
+    return NextResponse.json({ error: 'RATE_LIMITED' }, { status: 429 });
+  }
+
   // Return fresh in-memory cache if valid
   if (cachedResponse && now - cachedResponse.timestamp < CACHE_TTL_MS) {
     return NextResponse.json(
@@ -98,7 +109,8 @@ export async function GET() {
           id: s.id,
           title: typeof s.titles === 'object' ? (s.titles?.en || s.titles?.bn || s.titles?.hi) : s.titles,
           description: typeof s.summaries === 'object' ? (s.summaries?.en || s.summaries?.bn || s.summaries?.hi || '').slice(0, 200) : s.summaries,
-          url: s.media_url || '#',
+          // Deep-link into the app's story view rather than the media CDN.
+          url: `/?story=${encodeURIComponent(s.id)}`,
           source: s.source === 'rss' ? 'Wire Agency' : 'Verified Sentinel',
           image: s.media_url || getReferenceImage(s.category),
           publishedAt: s.created_at,

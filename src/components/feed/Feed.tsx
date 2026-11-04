@@ -164,19 +164,31 @@ export function Feed({
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
     const sb = getSupabaseBrowserClient();
+    // Scope realtime to the rollout_stage the UI actually cares about, so a
+    // busy ingestion pipeline doesn't blast every browser with updates it
+    // will filter out client-side.
+    const stageFilter = vault ? 'rollout_stage=eq.quarantined' : 'rollout_stage=eq.public';
     const channel = sb
       .channel(`feed:${scope}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stories' }, (payload) => {
-        const s = payload.new as Story;
-        setStories((list) => {
-          const updated = list
-            .map((x) => (x.id === s.id ? { ...x, ...s } : x))
-            .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined'));
-          feedScopeCache.set(cacheKey, updated);
-          return updated;
-        });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => load())
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'stories', filter: stageFilter },
+        (payload) => {
+          const s = payload.new as Story;
+          setStories((list) => {
+            const updated = list
+              .map((x) => (x.id === s.id ? { ...x, ...s } : x))
+              .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined'));
+            feedScopeCache.set(cacheKey, updated);
+            return updated;
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'stories', filter: stageFilter },
+        () => load(),
+      )
       .subscribe();
     return () => {
       sb.removeChannel(channel);

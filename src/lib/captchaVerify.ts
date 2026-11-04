@@ -1,25 +1,29 @@
 // ════════════════════════════════════════════════════════════════════════
 //  VeriPulse — server-side captcha token verifier
-//  Pair with /api/captcha/issue. Mutating routes call `verifyCaptchaToken`
-//  before accepting a submission from the client.
+//  Pair with /api/captcha/issue. Mutating routes call
+//  `consumeCaptchaToken` (async, one-shot) before accepting a submission.
+//  `verifyCaptchaToken` is retained for the signature-only check used by
+//  demo code paths.
 // ════════════════════════════════════════════════════════════════════════
 
 import { createHmac, timingSafeEqual } from 'crypto';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 export interface CaptchaVerifyResult {
   ok: boolean;
-  reason?: 'missing' | 'malformed' | 'bad_sig' | 'expired';
+  reason?: 'missing' | 'malformed' | 'bad_sig' | 'expired' | 'replayed';
 }
 
 function sign(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
-/**
- * Verify a token produced by /api/captcha/issue. The CAPTCHA_SECRET env
- * var must match the one that signed it. In demo (no secret) we accept
- * any value, which keeps the modal visible but harmless.
- */
+interface TokenPayload {
+  nonce: string;
+  exp: number;
+}
+
+/** Signature + expiry check only. Does NOT burn the nonce. */
 export function verifyCaptchaToken(token: unknown): CaptchaVerifyResult {
   const secret = process.env.CAPTCHA_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) {
@@ -44,9 +48,7 @@ export function verifyCaptchaToken(token: unknown): CaptchaVerifyResult {
   }
 
   try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as {
-      exp?: number;
-    };
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Partial<TokenPayload>;
     if (typeof payload.exp !== 'number' || payload.exp * 1000 < Date.now()) {
       return { ok: false, reason: 'expired' };
     }
@@ -55,4 +57,51 @@ export function verifyCaptchaToken(token: unknown): CaptchaVerifyResult {
   }
 
   return { ok: true };
+}
+
+/** Parse a token and return its nonce if signature + expiry pass. */
+function extractNonce(token: unknown): string | null {
+  if (typeof token !== 'string' || !token.includes('.')) return null;
+  const [body] = token.split('.');
+  if (!body) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Partial<TokenPayload>;
+    return typeof payload.nonce === 'string' ? payload.nonce : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One-shot verification used by every mutating route. Validates signature +
+ * expiry, then atomically consumes the nonce from captcha_nonces so the same
+ * token can't be reused. In demo mode (no secret configured) it is a no-op.
+ */
+export async function consumeCaptchaToken(token: unknown): Promise<CaptchaVerifyResult> {
+  const sigResult = verifyCaptchaToken(token);
+  if (!sigResult.ok) return sigResult;
+
+  // Demo mode — no nonce storage available. Keep behaviour permissive so
+  // the stack works without Supabase credentials.
+  if (!process.env.CAPTCHA_SECRET || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { ok: true };
+  }
+
+  const nonce = extractNonce(token);
+  if (!nonce) return { ok: false, reason: 'malformed' };
+
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin.rpc('consume_captcha_nonce', { p_nonce: nonce });
+    if (error) {
+      // Transient DB error. Fall back to signature-only acceptance so a
+      // Supabase hiccup doesn't lock out every writer.
+      return { ok: true };
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return { ok: false, reason: 'replayed' };
+    return { ok: true };
+  } catch {
+    return { ok: true };
+  }
 }

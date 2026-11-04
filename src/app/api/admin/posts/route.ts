@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
   const g = await requireAdmin();
   if ('error' in g) return g.error;
   const status = (req.nextUrl.searchParams.get('status') ?? 'live') as 'live' | 'taken_down';
-  const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
+  // Cap + strip PostgREST filter metacharacters and escape ilike wildcards.
+  const rawQ = (req.nextUrl.searchParams.get('q') ?? '').trim().slice(0, 80);
+  const q = rawQ.replace(/[,()\\]/g, '').replace(/[%_]/g, (c) => `\\${c}`);
 
   let query = g.admin
     .from('stories')
@@ -28,7 +30,10 @@ export async function GET(req: NextRequest) {
   if (status === 'taken_down') {
     query = query.or('admin_taken_down.eq.true,rollout_stage.eq.quarantined');
   } else {
-    query = query.neq('rollout_stage', 'quarantined').is('admin_taken_down', false);
+    query = query
+      .neq('rollout_stage', 'quarantined')
+      // Treat NULL as "not taken down" so legacy rows aren't orphaned.
+      .or('admin_taken_down.is.null,admin_taken_down.eq.false');
   }
   if (q) query = query.ilike('titles->>en', `%${q}%`);
 

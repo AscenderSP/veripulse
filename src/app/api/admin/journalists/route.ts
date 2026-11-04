@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { ACCOUNT_TYPES } from '@/lib/accountTiers';
+import { writeAudit } from '@/lib/auditLog';
+import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,10 +70,27 @@ export async function POST(req: NextRequest) {
           badge: 'Citizen Reporter',
         };
 
+  // Snapshot before mutating so the audit log can show before→after.
+  const beforeFields = Object.keys(patch);
+  const { data: before } = await g.admin
+    .from('profiles')
+    .select(beforeFields.join(','))
+    .eq('id', userId)
+    .single();
+
   const { error } = await g.admin.from('profiles').update(patch).eq('id', userId);
   if (error) {
     return NextResponse.json({ error: 'UPDATE_FAILED', detail: error.message }, { status: 500 });
   }
+
+  await writeAudit(g.admin, g.adminUser, {
+    action: decision === 'approve' ? 'journalist_approve' : 'journalist_reject',
+    target_table: 'profiles',
+    target_id: userId,
+    reason: sanitizeUserText(body.note, 500) || null,
+    before_data: before ?? null,
+    after_data: patch,
+  });
 
   // Notify the user. Non-fatal if the notifications table rejects us.
   try {

@@ -31,6 +31,7 @@ import { CaptchaMount } from '@/components/ui/CaptchaChallenge';
 import { useBackClose } from '@/hooks/useBackClose';
 import { emitRefresh } from '@/lib/refreshBus';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { LangSwitch } from './LangSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { RightRail } from './RightRail';
@@ -38,24 +39,63 @@ import { AuthSheet } from './AuthSheet';
 import { ReviewPrompt } from './ReviewPrompt';
 import { PostFab, DISPATCH_SIGNAL_KEY, BOUNTY_SIGNAL_KEY } from './PostFab';
 import { GLOBAL_AREA, type Area } from './AreaSwitcher';
+// Feed is the default landing section, so it stays in the initial bundle.
 import { Feed } from '@/components/feed/Feed';
-import { Composer } from '@/components/feed/Composer';
-import { ProductMatrix } from '@/components/compare/ProductMatrix';
-import { Wallet } from '@/components/wallet/Wallet';
-import { VerifyDrawer } from '@/components/verify/VerifyDrawer';
 import { Card } from '@/components/ui/primitives';
 import { useSession } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { DEMO_LEADERBOARD, DEMO_STORIES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { showAnchoredBanner } from '@/lib/admob';
-import { EarnHub } from '@/components/earn/EarnHub';
-import { FactCheckScanner } from '@/components/feed/FactCheckScanner';
-import { OwnershipPassportView } from '@/components/earn/OwnershipPassport';
-import { ProfileView } from '@/components/profile/ProfileView';
-import { NewsHub } from '@/components/news/NewsHub';
-import { CinemaReviews } from '@/components/cinema/CinemaReviews';
 import { t, UI_STRINGS } from '@/lib/translations';
+
+// Heavy sections are code-split: they only ship their JS when the user
+// actually navigates to them. Shrinks the initial route payload by ~1 MB.
+const SectionLoader = () => (
+  <div className="flex min-h-[40vh] items-center justify-center">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-emerald/40 border-t-brand-emerald" />
+  </div>
+);
+const Composer = dynamic(
+  () => import('@/components/feed/Composer').then((m) => m.Composer),
+  { ssr: false, loading: SectionLoader },
+);
+const ProductMatrix = dynamic(
+  () => import('@/components/compare/ProductMatrix').then((m) => m.ProductMatrix),
+  { ssr: false, loading: SectionLoader },
+);
+const Wallet = dynamic(
+  () => import('@/components/wallet/Wallet').then((m) => m.Wallet),
+  { ssr: false, loading: SectionLoader },
+);
+const VerifyDrawer = dynamic(
+  () => import('@/components/verify/VerifyDrawer').then((m) => m.VerifyDrawer),
+  { ssr: false, loading: SectionLoader },
+);
+const EarnHub = dynamic(
+  () => import('@/components/earn/EarnHub').then((m) => m.EarnHub),
+  { ssr: false, loading: SectionLoader },
+);
+const FactCheckScanner = dynamic(
+  () => import('@/components/feed/FactCheckScanner').then((m) => m.FactCheckScanner),
+  { ssr: false, loading: SectionLoader },
+);
+const OwnershipPassportView = dynamic(
+  () => import('@/components/earn/OwnershipPassport').then((m) => m.OwnershipPassportView),
+  { ssr: false, loading: SectionLoader },
+);
+const ProfileView = dynamic(
+  () => import('@/components/profile/ProfileView').then((m) => m.ProfileView),
+  { ssr: false, loading: SectionLoader },
+);
+const NewsHub = dynamic(
+  () => import('@/components/news/NewsHub').then((m) => m.NewsHub),
+  { ssr: false, loading: SectionLoader },
+);
+const CinemaReviews = dynamic(
+  () => import('@/components/cinema/CinemaReviews').then((m) => m.CinemaReviews),
+  { ssr: false, loading: SectionLoader },
+);
 
 type Section = 'feed' | 'news' | 'vault' | 'compare' | 'earn' | 'scanner' | 'passport' | 'sentinel' | 'wallet' | 'profile' | 'compose' | 'cinema';
 

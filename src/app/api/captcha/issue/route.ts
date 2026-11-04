@@ -14,9 +14,12 @@ import { NextResponse } from 'next/server';
 import { createHmac, randomBytes } from 'crypto';
 import { rateLimit, rateLimitKey } from '@/lib/rateLimit';
 import { headers } from 'next/headers';
+import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const TOKEN_TTL_SECONDS = 10 * 60;
 
 function sign(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('base64url');
@@ -32,11 +35,31 @@ export async function POST() {
     return NextResponse.json({ error: 'RATE_LIMITED' }, { status: 429 });
   }
 
+  const nonce = randomBytes(16).toString('base64url');
   const payload = {
-    nonce: randomBytes(12).toString('base64url'),
-    exp: Math.floor(Date.now() / 1000) + 10 * 60, // 10 min
+    nonce,
+    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = sign(body, secret);
+
+  // Persist the nonce so verifyCaptchaToken can consume it exactly once.
+  // Only enforced when CAPTCHA_SECRET is set (prod); demo mode skips it so
+  // the UI works without a configured Supabase.
+  if (process.env.CAPTCHA_SECRET && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const { user } = await getRequestUser();
+      const admin = createSupabaseAdminClient();
+      await admin.from('captcha_nonces').insert({
+        nonce,
+        user_id: user?.id ?? null,
+        expires_at: new Date((payload.exp) * 1000).toISOString(),
+      });
+    } catch {
+      // Non-fatal — a persistence failure degrades to HMAC-only verification,
+      // which is still better than nothing.
+    }
+  }
+
   return NextResponse.json({ token: `${body}.${sig}` });
 }

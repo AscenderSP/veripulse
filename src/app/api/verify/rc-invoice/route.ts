@@ -28,9 +28,16 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const imageB64: string = (body.image_base64 ?? '').replace(/^data:[^;]+;base64,/, '');
-    const mime: string = body.mime ?? 'image/jpeg';
+    const rawMime: string = typeof body.mime === 'string' ? body.mime : 'image/jpeg';
+    // Allow only the image MIME types we actually hand to Gemini OCR.
+    const mime = /^image\/(jpeg|png|webp|heic|heif)$/i.test(rawMime) ? rawMime : 'image/jpeg';
     if (!imageB64) return NextResponse.json({ error: 'NO_IMAGE' }, { status: 400 });
 
+    // Reject oversize payloads BEFORE decoding so a 100MB base64 blob can't
+    // force a ~75MB allocation to be rejected a line later.
+    if (imageB64.length > Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 4) {
+      return NextResponse.json({ error: 'IMAGE_TOO_LARGE' }, { status: 413 });
+    }
     const bytes = Buffer.from(imageB64, 'base64');
     if (bytes.length > MAX_IMAGE_BYTES) {
       return NextResponse.json({ error: 'IMAGE_TOO_LARGE' }, { status: 413 });

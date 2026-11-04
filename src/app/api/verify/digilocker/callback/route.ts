@@ -36,28 +36,23 @@ export async function GET(req: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
-  // 1. Validate state token (one-shot).
-  const { data: session } = await admin
+  // 1. Atomically claim the state token. An UPDATE … WHERE consumed_at IS
+  //    NULL … RETURNING is race-free: two concurrent callbacks cannot both
+  //    see the row as un-consumed.
+  const nowIso = new Date().toISOString();
+  const { data: claimedRows } = await admin
     .from('digilocker_sessions')
-    .select('user_id, nonce, expires_at, consumed_at')
+    .update({ consumed_at: nowIso })
     .eq('state_token', state)
-    .single();
-  if (!session) {
+    .is('consumed_at', null)
+    .gt('expires_at', nowIso)
+    .select('user_id, nonce, expires_at');
+  const row = claimedRows?.[0] as
+    | { user_id: string; nonce: string; expires_at: string }
+    | undefined;
+  if (!row) {
     return NextResponse.redirect(`${origin}/?verified=0&reason=bad_state`, 302);
   }
-  const row = session as {
-    user_id: string;
-    nonce: string;
-    expires_at: string;
-    consumed_at: string | null;
-  };
-  if (row.consumed_at || new Date(row.expires_at).getTime() < Date.now()) {
-    return NextResponse.redirect(`${origin}/?verified=0&reason=expired`, 302);
-  }
-  await admin
-    .from('digilocker_sessions')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('state_token', state);
 
   // 2. Exchange code for access token.
   try {

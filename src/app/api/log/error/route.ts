@@ -7,6 +7,31 @@ import { rateLimit, rateLimitKey } from '@/lib/rateLimit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Serialize `extra` with a hard cap. If the JSON is longer than `max` chars
+ * we fall back to a string excerpt rather than slicing the JSON (which can
+ * leave a half-open object that JSON.parse would reject). Also scrubs the
+ * common auth-token field names so an error payload can't leak credentials.
+ */
+function safeTruncate(value: unknown, max = 10_000): unknown {
+  if (!value || typeof value !== 'object') return null;
+  try {
+    const scrubbed = JSON.parse(
+      JSON.stringify(value, (key, v) => {
+        if (/access_token|refresh_token|authorization|api_key|apikey|secret/i.test(key)) {
+          return '[redacted]';
+        }
+        return v;
+      }),
+    );
+    const json = JSON.stringify(scrubbed);
+    if (json.length <= max) return scrubbed;
+    return { _truncated: true, excerpt: json.slice(0, max) };
+  } catch {
+    return null;
+  }
+}
+
 interface ErrorBody {
   message?: unknown;
   stack?: unknown;
@@ -51,10 +76,7 @@ export async function POST(req: NextRequest) {
     stack: sanitizeUserText(body.stack, 8000) || null,
     component: sanitizeUserText(body.context?.component, 120) || null,
     action: sanitizeUserText(body.context?.action, 120) || null,
-    extra:
-      body.context?.extra && typeof body.context.extra === 'object'
-        ? JSON.parse(JSON.stringify(body.context.extra).slice(0, 10_000))
-        : null,
+    extra: safeTruncate(body.context?.extra),
     ip_address: ip === 'unknown' ? null : ip,
     user_agent: h.get('user-agent'),
   };

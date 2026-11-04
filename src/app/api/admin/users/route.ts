@@ -15,7 +15,10 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const g = await requireAdmin();
   if ('error' in g) return g.error;
-  const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
+  // Cap the search term and strip PostgREST filter metacharacters so a comma
+  // or paren can't rewrite the .or() expression into a different query.
+  const rawQ = (req.nextUrl.searchParams.get('q') ?? '').trim().slice(0, 80);
+  const q = rawQ.replace(/[,()\\]/g, '').replace(/[%_]/g, (c) => `\\${c}`);
   const filter = (req.nextUrl.searchParams.get('filter') ?? 'all') as
     | 'all'
     | 'suspended'

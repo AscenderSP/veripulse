@@ -7,7 +7,13 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
  *    token. Webhooks/postbacks are server-to-server and unaffected.
  * 2. Refreshes the Supabase auth session cookie on page requests.
  */
-const NATIVE_ORIGINS = ['capacitor://localhost', 'https://localhost', 'http://localhost'];
+// capacitor://localhost (iOS) and https://localhost (Android) are the two
+// origins the native shell actually uses. http://localhost is only ever
+// seen during local web dev, so it's gated behind NODE_ENV.
+const NATIVE_ORIGINS =
+  process.env.NODE_ENV === 'production'
+    ? ['capacitor://localhost', 'https://localhost']
+    : ['capacitor://localhost', 'https://localhost', 'http://localhost'];
 
 function corsHeaders(origin: string | null): Record<string, string> {
   if (!origin || !NATIVE_ORIGINS.includes(origin)) return {};

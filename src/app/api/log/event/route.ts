@@ -42,10 +42,20 @@ export async function POST(req: NextRequest) {
   const { user } = await getRequestUser();
   const admin = createSupabaseAdminClient();
 
-  const payload =
-    body.payload && typeof body.payload === 'object'
-      ? JSON.parse(JSON.stringify(body.payload).slice(0, 10_000))
-      : null;
+  let payload: unknown = null;
+  if (body.payload && typeof body.payload === 'object') {
+    try {
+      const json = JSON.stringify(body.payload);
+      // Cap size but avoid slicing JSON mid-structure.
+      if (json.length <= 10_000) {
+        payload = JSON.parse(json);
+      } else {
+        payload = { _truncated: true, excerpt: json.slice(0, 10_000) };
+      }
+    } catch {
+      payload = null;
+    }
+  }
 
   const { error } = await admin.from('app_events').insert({
     user_id: user?.id ?? null,

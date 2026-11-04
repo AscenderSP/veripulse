@@ -70,26 +70,41 @@ export async function POST(req: NextRequest) {
   const eventId = req.headers.get('x-razorpay-event-id') ?? `evt_${Date.now()}`;
   const admin = createSupabaseAdminClient();
 
-  // Idempotency guard. The table is created lazily; migration 0009 adds it.
-  const { error: dupErr } = await admin
+  // Idempotency reservation. Insert row with status='processing' first; if
+  // that conflicts AND the existing row is already 'processed', it's a true
+  // replay and we no-op. If it's still 'processing' we fall through and
+  // attempt the mutation again — covers crash-in-the-middle.
+  const { error: insErr } = await admin
     .from('razorpay_webhook_events')
-    .insert({ event_id: eventId, event: event.event, payload: event });
-  // Error 23505 = unique violation. Anything else is logged but we still
-  // attempt to apply the mutation, because missing idempotency row shouldn't
-  // block a legitimate activation.
-  if (dupErr && (dupErr as unknown as { code?: string }).code === '23505') {
-    return NextResponse.json({ ok: true, idempotent: true });
+    .insert({ event_id: eventId, event: event.event, payload: event, status: 'processing' });
+
+  if (insErr && (insErr as unknown as { code?: string }).code === '23505') {
+    const { data: existing } = await admin
+      .from('razorpay_webhook_events')
+      .select('status')
+      .eq('event_id', eventId)
+      .single();
+    if ((existing as { status?: string } | null)?.status === 'processed') {
+      return NextResponse.json({ ok: true, idempotent: true });
+    }
+    // else: a prior attempt crashed mid-flight; keep going and try again.
   }
 
   const sub = event.payload?.subscription?.entity;
   const pay = event.payload?.payment?.entity;
+
+  const markProcessed = () =>
+    admin
+      .from('razorpay_webhook_events')
+      .update({ status: 'processed', processed_at: new Date().toISOString() })
+      .eq('event_id', eventId);
 
   if (event.event === 'subscription.activated' || event.event === 'subscription.charged') {
     const userId = sub?.notes?.user_id;
     if (!userId) return NextResponse.json({ ok: true, skipped: 'no_user_id' });
     const expires = new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * 86400_000).toISOString();
     const meta = ACCOUNT_TYPES.pro_reporter;
-    await admin
+    const { error: updErr } = await admin
       .from('profiles')
       .update({
         subscription_tier: 'pro',
@@ -99,15 +114,23 @@ export async function POST(req: NextRequest) {
         badge: 'Pro Reporter',
       })
       .eq('id', userId);
+    if (updErr) {
+      // Leave row as 'processing' so Razorpay's retry will try again.
+      return NextResponse.json({ error: 'ACTIVATION_FAILED' }, { status: 500 });
+    }
+    await markProcessed();
     track('subscription_activate', { user_id: userId, event: event.event });
     return NextResponse.json({ ok: true });
   }
 
   if (event.event === 'subscription.cancelled') {
     const userId = sub?.notes?.user_id;
-    if (!userId) return NextResponse.json({ ok: true, skipped: 'no_user_id' });
+    if (!userId) {
+      await markProcessed();
+      return NextResponse.json({ ok: true, skipped: 'no_user_id' });
+    }
     const meta = ACCOUNT_TYPES.citizen_reporter;
-    await admin
+    const { error: updErr } = await admin
       .from('profiles')
       .update({
         subscription_tier: 'free',
@@ -117,15 +140,26 @@ export async function POST(req: NextRequest) {
         badge: 'Citizen Reporter',
       })
       .eq('id', userId);
+    if (updErr) return NextResponse.json({ error: 'CANCEL_FAILED' }, { status: 500 });
+    await markProcessed();
     return NextResponse.json({ ok: true });
   }
 
   if (event.event === 'payment.captured' && pay?.notes?.plan === 'press_pass') {
     const userId = pay.notes?.user_id;
-    if (!userId) return NextResponse.json({ ok: true, skipped: 'no_user_id' });
-    await admin.from('profiles').update({ is_press_pass_paid: true }).eq('id', userId);
+    if (!userId) {
+      await markProcessed();
+      return NextResponse.json({ ok: true, skipped: 'no_user_id' });
+    }
+    const { error: updErr } = await admin
+      .from('profiles')
+      .update({ is_press_pass_paid: true })
+      .eq('id', userId);
+    if (updErr) return NextResponse.json({ error: 'PRESS_PASS_FAILED' }, { status: 500 });
+    await markProcessed();
     return NextResponse.json({ ok: true });
   }
 
+  await markProcessed();
   return NextResponse.json({ ok: true, ignored: event.event });
 }

@@ -18,7 +18,10 @@ export const viewport: Viewport = {
   themeColor: '#070B14',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // Allow pinch-zoom up to 5x for low-vision accessibility. Capping at 1
+  // violates WCAG 1.4.4 and iOS ignores it anyway.
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: 'cover', // required for env(safe-area-inset-*)
 };
 

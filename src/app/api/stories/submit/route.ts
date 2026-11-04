@@ -3,7 +3,7 @@ import { getRequestUser, createSupabaseAdminClient } from '@/lib/supabase/server
 import { analyzeStory, embedText } from '@/lib/gemini';
 import { getReferenceImage } from '@/lib/referenceImages';
 import { checkPostLimit } from '@/lib/admin';
-import { verifyCaptchaToken } from '@/lib/captchaVerify';
+import { consumeCaptchaToken } from '@/lib/captchaVerify';
 import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
@@ -49,10 +49,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    // Captcha gate — enforced when CAPTCHA_SECRET is set.
-    const captcha = verifyCaptchaToken(body.captcha_token);
+    // Captcha gate — enforced when CAPTCHA_SECRET is set. One-shot: the
+    // nonce is burned on first use so a token can't be reused for spam.
+    const captcha = await consumeCaptchaToken(body.captcha_token);
     if (!captcha.ok && process.env.CAPTCHA_SECRET) {
-      return NextResponse.json({ error: 'CAPTCHA_REQUIRED' }, { status: 400 });
+      return NextResponse.json(
+        { error: captcha.reason === 'replayed' ? 'CAPTCHA_REPLAYED' : 'CAPTCHA_REQUIRED' },
+        { status: 400 },
+      );
     }
     const text: string = sanitizeUserText(body.text, 2000);
     if (text.length < 20) {
@@ -76,12 +80,16 @@ export async function POST(req: NextRequest) {
     // TODO: replace with full C2PA manifest validation (c2pa-node) once the
     // native capture plugin signs manifests.
     const capturedAt = Date.parse(body.captured_at ?? '');
+    const capturedDelta = Date.now() - capturedAt;
     const c2pa =
       mediaUrl !== null &&
       lat !== null &&
       lng !== null &&
       Number.isFinite(capturedAt) &&
-      Date.now() - capturedAt < 15 * 60 * 1000;
+      // Must be in the past (>=0) AND within the last 15 minutes. Blocks
+      // future-dated timestamps from gaming the freshness check.
+      capturedDelta >= 0 &&
+      capturedDelta < 15 * 60 * 1000;
 
     // ── Gemini analysis, then embed the English summary ──
     const analysis = await analyzeStory(text);

@@ -18,7 +18,10 @@ async function handle(req: NextRequest) {
   const url = new URL(req.url);
   const q = url.searchParams;
 
-  const secret = q.get('secret') ?? req.headers.get('x-postback-secret') ?? '';
+  // Prefer the header so the shared secret doesn't end up in access logs /
+  // referrers. Fall back to the query param for networks that only support
+  // GET with a secret embedded in the URL (Amazon Associates, some Cuelinks).
+  const secret = req.headers.get('x-postback-secret') ?? q.get('secret') ?? '';
   const expected = process.env.AFFILIATE_POSTBACK_SECRET ?? '';
   if (!expected || !safeEqual(secret, expected)) {
     return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });

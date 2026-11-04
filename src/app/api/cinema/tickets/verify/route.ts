@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { getRequestUser, createSupabaseAdminClient } from '@/lib/supabase/server';
-import { verifyCaptchaToken } from '@/lib/captchaVerify';
+import { consumeCaptchaToken } from '@/lib/captchaVerify';
 import { sanitizeUserText } from '@/lib/sanitize';
 
 export const runtime = 'nodejs';
@@ -51,9 +51,12 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as Body;
 
-  const captcha = verifyCaptchaToken(body.captcha_token);
+  const captcha = await consumeCaptchaToken(body.captcha_token);
   if (!captcha.ok && process.env.CAPTCHA_SECRET) {
-    return NextResponse.json({ error: 'CAPTCHA_REQUIRED' }, { status: 400 });
+    return NextResponse.json(
+      { error: captcha.reason === 'replayed' ? 'CAPTCHA_REPLAYED' : 'CAPTCHA_REQUIRED' },
+      { status: 400 },
+    );
   }
 
   const movie_id    = sanitizeUserText(body.movie_id, 80);

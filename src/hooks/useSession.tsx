@@ -491,7 +491,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
 
     async verifyIdentity(idNumber, idType) {
-      // Cryptographic hash simulation for Aadhaar / PAN
+      // DEMO-ONLY path. In live mode, identity verification happens through
+      // the DigiLocker OAuth flow and /api/verify/rc-invoice — flipping
+      // is_id_verified from the client would be fraud.
+      if (!demo) {
+        return { success: false, hash: '' };
+      }
+
       const raw = `${idType.toUpperCase()}:${idNumber.trim().toUpperCase()}`;
       let hash = 0;
       for (let i = 0; i < raw.length; i++) {

@@ -21,10 +21,20 @@ const supabaseHost = (() => {
 
 // Content-Security-Policy. Allows the Supabase project, Unsplash thumbnails,
 // Razorpay checkout, and Google OAuth. 'unsafe-inline' on styles is needed
-// for Tailwind's generated utility classes; scripts stay strict.
+// for Tailwind's generated utility classes; 'unsafe-eval' is kept in dev only
+// for React Refresh / Turbopack and dropped in production builds.
+const isProd = process.env.NODE_ENV === 'production';
+const scriptSrc = [
+  `'self'`,
+  `'unsafe-inline'`,
+  ...(isProd ? [] : [`'unsafe-eval'`]),
+  'https://checkout.razorpay.com',
+  'https://accounts.google.com',
+].join(' ');
+
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://accounts.google.com`,
+  `script-src ${scriptSrc}`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' data: https://fonts.gstatic.com`,
   `img-src 'self' data: blob: https: ${supabaseHost}`,

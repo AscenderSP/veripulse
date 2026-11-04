@@ -11,7 +11,13 @@ import { cookies } from 'next/headers';
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.clone();
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') ?? '/';
+  const rawNext = url.searchParams.get('next') ?? '/';
+  // Only accept same-origin relative paths. Rejects '//evil.com',
+  // 'https://evil.com', 'javascript:…', and anything with a scheme.
+  const next =
+    rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.startsWith('/\\')
+      ? rawNext
+      : '/';
 
   if (!code) {
     return NextResponse.redirect(new URL('/', request.url));
