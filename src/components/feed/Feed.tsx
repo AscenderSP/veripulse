@@ -23,7 +23,13 @@ import { IncidentMap } from './IncidentMap';
 import { DEMO_STORIES, DEMO_TIMELINE, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api';
-import { nextCredibility, nextStage, voteWeight } from '@/lib/consensus';
+import { voteWeight, type ConsensusStage } from '@/lib/consensus';
+import {
+  getProfileVotes as getDemoProfileVotes,
+  overlayCredibility as overlayDemoCredibility,
+  priorDemoVoteCount,
+  recordVote as recordDemoVote,
+} from '@/lib/demoVoteStore';
 import { cn, distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -118,6 +124,21 @@ export function Feed({
     },
   };
 
+  // Rehydrate the lock map from the shared demoVoteStore whenever the
+  // active profile changes. Weight is reconstructed as 1.0 (sentinel in
+  // nothing); the actual math already ran when the vote was persisted,
+  // so what we need here is purely the "voted on this story" flag.
+  useEffect(() => {
+    if (!profile?.id) return;
+    const stored = getDemoProfileVotes(profile.id);
+    if (Object.keys(stored).length === 0) return;
+    const bucket = demoVotesByProfile.current[profile.id] ?? {};
+    for (const [storyId, vote] of Object.entries(stored)) {
+      if (!bucket[storyId]) bucket[storyId] = { vote, weight: 1 };
+    }
+    demoVotesByProfile.current[profile.id] = bucket;
+  }, [profile?.id]);
+
   const load = useCallback(async () => {
     // If we have no cached stories, show skeleton
     if (stories.length === 0) {
@@ -125,6 +146,19 @@ export function Feed({
     } else {
       setIsRefreshing(true);
     }
+
+    // Overlay dummy / preset-dummy vote shifts onto the fetched rows so a
+    // refresh shows the accumulated credibility rather than the baseline.
+    const applyOverlay = (rows: Story[]): Story[] =>
+      overlayDemoCredibility(
+        rows,
+        (s) => ({
+          id: s.id,
+          credibility: s.credibility_score,
+          stage: s.rollout_stage as ConsensusStage,
+        }),
+        (s, credibility, stage) => ({ ...s, credibility_score: credibility, rollout_stage: stage }),
+      );
 
     if (!isSupabaseConfigured()) {
       const inScope = DEMO_STORIES.filter((s) => {
@@ -137,8 +171,9 @@ export function Feed({
           area.lat === null ||
           (s.lat !== null && s.lng !== null && distanceKm(area.lat, area.lng!, s.lat, s.lng) <= 10),
       );
-      setStories(inScope);
-      feedScopeCache.set(cacheKey, inScope);
+      const overlaid = applyOverlay(inScope);
+      setStories(overlaid);
+      feedScopeCache.set(cacheKey, overlaid);
       setLoading(false);
       setIsRefreshing(false);
       return;
@@ -153,8 +188,9 @@ export function Feed({
         p_limit: 50,
       });
       const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
-      setStories(active);
-      feedScopeCache.set(cacheKey, active);
+      const overlaid = applyOverlay(active);
+      setStories(overlaid);
+      feedScopeCache.set(cacheKey, overlaid);
     } catch {
       // Retain existing cached stories on network hiccup
     } finally {
@@ -252,28 +288,39 @@ export function Feed({
   }
 
   function demoVote(story: Story, vote: VoteAction): VoteOutcome {
-    // One vote per story — final. Repeat / switch attempts return the
-    // current credibility unchanged so the UI simply re-paints the lock.
-    const prev = demoVotes.current[story.id];
-    if (prev) return { credibility: story.credibility_score, stage: story.rollout_stage };
-
+    // One vote per story PER PROFILE — final. Routed through the shared
+    // demoVoteStore so (a) the vote survives a page refresh, and (b)
+    // every dummy profile in this browser sees the accumulated shift.
+    if (demoVotes.current[story.id]) {
+      return { credibility: story.credibility_score, stage: story.rollout_stage };
+    }
     const weight = voteWeight({
       trustScore: profile?.trust_score ?? 50,
       tier: (profile?.tier as 'sentinel_t1' | 'validator_t2' | 'public' | undefined) ?? 'public',
       isJournalist: profile?.is_journalist_verified ?? false,
       isVerifiedOwner: profile?.is_ownership_verified ?? false,
       distanceKm: null,
-      priorVoteCount: 0,
+      priorVoteCount: priorDemoVoteCount(story.id),
     });
-    const cred = nextCredibility(story.credibility_score, vote, weight);
-    const stage = nextStage(story.rollout_stage, cred);
+    const result = recordDemoVote({
+      storyId: story.id,
+      profileId: profile?.id ?? '__anon__',
+      vote,
+      weight,
+      baseCredibility: story.credibility_score,
+      baseStage: story.rollout_stage as ConsensusStage,
+    });
     demoVotes.current[story.id] = { vote, weight };
     setStories((list) => {
-      const updated = list.map((x) => (x.id === story.id ? { ...x, credibility_score: cred, rollout_stage: stage } : x));
+      const updated = list.map((x) =>
+        x.id === story.id
+          ? { ...x, credibility_score: result.credibility, rollout_stage: result.stage }
+          : x,
+      );
       feedScopeCache.set(cacheKey, updated);
       return updated;
     });
-    return { credibility: cred, stage };
+    return { credibility: result.credibility, stage: result.stage };
   }
 
   async function loadTimeline(storyId: string): Promise<StoryTimelineNode[]> {

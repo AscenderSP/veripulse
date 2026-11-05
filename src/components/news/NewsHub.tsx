@@ -41,7 +41,13 @@ import { Card, Button, Badge, CredMeter, CustomSelect } from '@/components/ui/pr
 import { cn, timeAgo, formatINR, formatVPCoins, inrToVPCoins } from '@/lib/utils';
 import { useLang } from '@/hooks/useLang';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
-import { voteWeight, nextCredibility, type ConsensusVote } from '@/lib/consensus';
+import { voteWeight, nextCredibility, type ConsensusVote, type ConsensusStage } from '@/lib/consensus';
+import {
+  getProfileVotes as getDemoProfileVotes,
+  overlayCredibility as overlayDemoCredibility,
+  priorDemoVoteCount,
+  recordVote as recordDemoVote,
+} from '@/lib/demoVoteStore';
 import { AudioReadout } from '@/components/feed/AudioReadout';
 import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -264,12 +270,18 @@ export function NewsHub() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // In-memory article cache for instant 0ms tab navigation
+  // In-memory article cache for instant 0ms tab navigation. The demo
+  // credibility overlay is applied on first read so a freshly refreshed
+  // page shows every dummy vote that landed before the reload.
   const [articles, setArticles] = useState<NewsArticle[]>(() => {
-    if (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) {
-      return (window as any).__VERIPULSE_NEWS_CACHE__;
-    }
-    return DEMO_NEWS_ARTICLES;
+    const base: NewsArticle[] =
+      (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) ||
+      DEMO_NEWS_ARTICLES;
+    return overlayDemoCredibility(
+      base,
+      (a) => ({ id: a.id, credibility: a.credibilityScore, stage: a.stage as ConsensusStage }),
+      (a, credibility, stage) => ({ ...a, credibilityScore: Math.round(credibility), stage }),
+    );
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -295,7 +307,11 @@ export function NewsHub() {
           setArticles((prev) => {
             const liveIds = new Set(live.map((a) => a.id));
             const remaining = prev.filter((a) => !liveIds.has(a.id));
-            const merged = [...live, ...remaining];
+            const merged = overlayDemoCredibility(
+              [...live, ...remaining],
+              (a) => ({ id: a.id, credibility: a.credibilityScore, stage: a.stage as ConsensusStage }),
+              (a, credibility, stage) => ({ ...a, credibilityScore: Math.round(credibility), stage }),
+            );
             if (typeof window !== 'undefined') {
               (window as any).__VERIPULSE_NEWS_CACHE__ = merged;
             }
@@ -370,6 +386,21 @@ export function NewsHub() {
     Record<string, Record<string, ConsensusVote>>
   >({});
   const currentProfileId = profile?.id ?? '__anon__';
+
+  // Rehydrate this profile's demo votes from localStorage whenever the
+  // active profile changes (initial mount, SwitchAccountPage, sign-in).
+  // Real Supabase users still have a live `votes` row the DB owns; this
+  // only backfills the UI lock for preset dummies.
+  useEffect(() => {
+    if (!profile?.id) return;
+    const stored = getDemoProfileVotes(profile.id);
+    if (Object.keys(stored).length === 0) return;
+    setUserVotesByProfile((prev) => {
+      if (prev[profile.id]) return prev; // already loaded this session
+      return { ...prev, [profile.id]: stored };
+    });
+  }, [profile?.id]);
+
   const userVotes = userVotesByProfile[currentProfileId] ?? {};
   const setUserVotes = (
     updater:
@@ -457,17 +488,18 @@ export function NewsHub() {
     });
   }, [articles, selectedCategory, selectedTag, c2paOnly, searchQuery, sortBy, lang]);
 
-  // Handle live credibility voting. One vote per article, no unvote, no
-  // switching sides — matches the DB-side lock in cast_weighted_vote
-  // (migration 0015) and the identical rule in Feed / StoryCard.
+  // Handle live credibility voting. One vote per article per profile, no
+  // unvote, no switching sides — matches the DB-side lock in
+  // cast_weighted_vote (migration 0015) and the identical rule in Feed /
+  // StoryCard.
   //
-  // Live mode: optimistically shift the local credibility, then POST to
-  // /api/votes/cast so every other viewer picks the authoritative value
-  // up over the realtime stories UPDATE subscription. On server error the
-  // optimistic patch is rolled back and userVotes is cleared so the user
-  // can try again (or see why they can't — e.g. ALREADY_VOTED).
-  //
-  // Demo mode (no Supabase): purely local — same math, no persistence.
+  // Two paths:
+  //  • Real Supabase user: optimistic patch, then POST /api/votes/cast so
+  //    every other viewer picks the authoritative value up over the
+  //    stories UPDATE Realtime subscription.
+  //  • Dummy / preset account (no JWT): route through demoVoteStore —
+  //    persists to localStorage, shares credibility across every dummy
+  //    profile in this browser, survives page refresh.
   const handleVote = async (articleId: string, vote: ConsensusVote) => {
     const authed = requireAuth(() => true);
     if (!authed) return;
@@ -475,10 +507,12 @@ export function NewsHub() {
 
     const article = articles.find((a) => a.id === articleId);
     if (!article) return;
+    const priorFromStore = priorDemoVoteCount(articleId);
     const priorVoteCount =
+      priorFromStore ||
       (article.realVotes ?? 0) +
-      (article.hoaxVotes ?? 0) +
-      (article.contextVotes ?? 0);
+        (article.hoaxVotes ?? 0) +
+        (article.contextVotes ?? 0);
     const weight = voteWeight({
       trustScore: profile?.trust_score ?? 50,
       tier: (profile?.tier as 'sentinel_t1' | 'validator_t2' | 'public' | undefined) ?? 'public',
@@ -488,15 +522,49 @@ export function NewsHub() {
       priorVoteCount,
     });
 
+    // ── Dummy / preset path ────────────────────────────────────────────
+    // Persist first (store writes to localStorage and computes the new
+    // credibility from the CURRENT shared value), then patch state with
+    // what the store returned. A refresh or profile switch rehydrates
+    // from the same store, so credibility and locks both survive.
+    if (!isSupabaseConfigured() || !isUuid(articleId) || !user) {
+      const result = recordDemoVote({
+        storyId: articleId,
+        profileId: profile?.id ?? '__anon__',
+        vote,
+        weight,
+        baseCredibility: article.credibilityScore,
+        baseStage: article.stage as ConsensusStage,
+      });
+      setArticles((prev) =>
+        prev.map((art) => {
+          if (art.id !== articleId) return art;
+          const patched: NewsArticle = {
+            ...art,
+            credibilityScore: Math.round(result.credibility),
+            stage: result.stage,
+            realVotes: (art.realVotes ?? 0) + (vote === 'real' && !result.locked ? 1 : 0),
+            hoaxVotes: (art.hoaxVotes ?? 0) + (vote === 'hoax' && !result.locked ? 1 : 0),
+            contextVotes:
+              (art.contextVotes ?? 0) + (vote === 'needs_context' && !result.locked ? 1 : 0),
+          };
+          if (drillDownArticle?.id === articleId) setDrillDownArticle(patched);
+          return patched;
+        }),
+      );
+      setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
+      return;
+    }
+
+    // ── Live Supabase path ────────────────────────────────────────────
     const prevCred = article.credibilityScore;
     const prevStage = article.stage;
 
-    // 1. Optimistic patch — identical to the old purely-local flow.
     setArticles((prev) =>
       prev.map((art) => {
         if (art.id !== articleId) return art;
         const newCredibility = nextCredibility(art.credibilityScore, vote, weight);
-        const updated = {
+        const updated: NewsArticle = {
           ...art,
           credibilityScore: Math.round(newCredibility),
           realVotes: (art.realVotes ?? 0) + (vote === 'real' ? 1 : 0),
@@ -508,15 +576,6 @@ export function NewsHub() {
       }),
     );
     setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
-
-    // 2. Skip the server round-trip when:
-    //    - Supabase isn't configured (full demo mode), or
-    //    - the article id isn't a stories-row UUID (demo slug), or
-    //    - there is no Supabase JWT (preset dummy / SwitchAccountPage).
-    //    The last one is what makes the two-account test work: /api/votes/
-    //    cast would 401 with AUTH_REQUIRED and the rollback would wipe
-    //    the vote, so the user saw it "reset" the moment they pressed.
-    if (!isSupabaseConfigured() || !isUuid(articleId) || !user) return;
 
     // 3. Captcha + persist. The server's cast_weighted_vote returns the
     //    authoritative new credibility; swap the optimistic value for it

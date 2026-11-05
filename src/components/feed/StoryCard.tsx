@@ -19,6 +19,7 @@ import {
 import type { Story, StoryStage, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
 import { useSession } from '@/hooks/useSession';
+import { getVote as getDemoVote } from '@/lib/demoVoteStore';
 import { Badge, CredMeter, Card } from '@/components/ui/primitives';
 import { stageMeta, timeAgo, cn } from '@/lib/utils';
 import { t } from '@/lib/translations';
@@ -50,13 +51,18 @@ export function StoryCard({
   const [nodes, setNodes] = useState<StoryTimelineNode[] | null>(null);
   const meta = stageMeta(stage);
 
-  // When the active profile changes (SwitchAccountPage) reset the local
-  // vote lock. Account A's vote shouldn't lock account B out, and the
-  // credibility re-syncs from the story prop already.
+  // When the active profile changes (SwitchAccountPage, sign-in, initial
+  // mount), restore this profile's locked vote from the shared demo
+  // store. Real Supabase sessions don't use this store — the lock will
+  // come from the server echo of cast_weighted_vote.
   useEffect(() => {
-    setVoted(null);
     setVoteError(null);
-  }, [profile?.id]);
+    if (!profile?.id) {
+      setVoted(null);
+      return;
+    }
+    setVoted(getDemoVote(story.id, profile.id) as VoteAction | null);
+  }, [profile?.id, story.id]);
 
   // The DB function substitutes a category stock URL into media_url when no
   // real photo was attached, so nullness alone isn't enough; detect stock IDs.
