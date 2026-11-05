@@ -7,10 +7,13 @@ import { clampSummary, enforceSixtyWords, wordCount } from '../src/lib/gemini.ts
 import { ownershipIdentityHash, maskIdentifier } from '../src/lib/crypto.ts';
 import type { ReporterDispatch } from '../src/lib/types.ts';
 
-test('consensus: 5 hoax flags from trust>80 sentinels quarantine a fresh story', () => {
+test('consensus: 7 hoax flags from trust>80 sentinels quarantine a fresh story', () => {
+  // Quarantine threshold is 30; each senior-sentinel hoax vote at
+  // trust 82 shifts credibility by ~3.375. Seven consecutive hoax
+  // flags take a fresh 50% story below the cutoff.
   let cred = 50;
   let stage: ConsensusStage = 'tier_1';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const weight = voteWeight({
       trustScore: 82,
       tier: 'sentinel_t1',
@@ -22,7 +25,7 @@ test('consensus: 5 hoax flags from trust>80 sentinels quarantine a fresh story',
     cred = nextCredibility(cred, 'hoax', weight);
     stage = nextStage(stage, cred);
   }
-  assert.ok(cred < 35, `credibility ${cred} should be < 35`);
+  assert.ok(cred < 30, `credibility ${cred} should be < 30`);
   assert.equal(stage, 'quarantined');
 });
 
@@ -84,7 +87,7 @@ test('consensus: multipliers stack (geo 1.5x within 10km, owner 2x, early 1.5x f
 test('consensus: stage transitions', () => {
   assert.equal(nextStage('tier_1', 50), 'tier_2');
   assert.equal(nextStage('tier_2', 80), 'public');
-  assert.equal(nextStage('public', 34.9), 'quarantined');
+  assert.equal(nextStage('public', 29.9), 'quarantined');
   assert.equal(nextStage('tier_2', 60), 'tier_2');
 });
 

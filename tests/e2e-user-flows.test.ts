@@ -510,7 +510,7 @@ describe('User Flow 5: Feed, Audio Readout, WhatsApp Shield & Incidents', () => 
     const quarantinedStories = DEMO_STORIES.filter((s) => s.rollout_stage === 'quarantined');
     assert.ok(quarantinedStories.length > 0, 'Quarantine vault contains filtered items');
     for (const q of quarantinedStories) {
-      assert.ok(q.credibility_score < 35, 'Quarantined stories have credibility score < 35');
+      assert.ok(q.credibility_score < 30, 'Quarantined stories have credibility score < 30');
     }
   });
 });

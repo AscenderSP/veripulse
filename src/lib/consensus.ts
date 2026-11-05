@@ -22,7 +22,7 @@ export type ConsensusStage = 'tier_1' | 'tier_2' | 'public' | 'quarantined';
 export type UserTier = 'sentinel_t1' | 'validator_t2' | 'public';
 
 export const PROMOTE_AT = 80;
-export const QUARANTINE_BELOW = 35;
+export const QUARANTINE_BELOW = 30;
 export const GEO_RADIUS_KM = 10;
 const K = 1.0;
 

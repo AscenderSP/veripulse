@@ -40,7 +40,7 @@ import {
 import { Card, Button, Badge, CredMeter, CustomSelect } from '@/components/ui/primitives';
 import { cn, timeAgo, formatINR, formatVPCoins, inrToVPCoins } from '@/lib/utils';
 import { useLang } from '@/hooks/useLang';
-import { useSession } from '@/hooks/useSession';
+import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { voteWeight, nextCredibility, type ConsensusVote } from '@/lib/consensus';
 import { AudioReadout } from '@/components/feed/AudioReadout';
 import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
@@ -246,6 +246,7 @@ function mapStoryToArticle(s: any): NewsArticle {
 export function NewsHub() {
   const { lang } = useLang();
   const { profile, updateProfile, patchDemoProfile } = useSession();
+  const requireAuth = useRequireAuth();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory | 'all'>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -393,6 +394,11 @@ export function NewsHub() {
 
   // Handle live credibility voting
   const handleVote = (articleId: string, vote: ConsensusVote) => {
+    // Voting requires an authenticated session. In live mode this opens
+    // the sign-in sheet; in demo it's a no-op until a profile is picked.
+    const authed = requireAuth(() => true);
+    if (!authed) return;
+
     const previousVote = userVotes[articleId];
     const isTogglingOff = previousVote === vote;
     const newVote = isTogglingOff ? null : vote;
@@ -928,11 +934,11 @@ export function NewsHub() {
           const titleText = article.titles[lang] ?? article.titles.en;
           const currentVote = userVotes[article.id];
           const totalVotes = (article.realVotes ?? 0) + (article.hoaxVotes ?? 0) + (article.contextVotes ?? 0);
-          // Meter reflects live credibility until votes build up, then
-          // weights by the real-vote share so the bar follows the crowd.
-          const realPercent = totalVotes > 0
-            ? Math.round(((article.realVotes ?? 0) / totalVotes) * 100)
-            : Math.round(article.credibilityScore);
+          // Meter reads the live credibility score — AI authenticity
+          // baseline, nudged up by Real votes and down by Hoax/Context
+          // via the multi-factor cast_weighted_vote math. Never a raw
+          // vote-share, so a single Real vote does NOT jump to 100%.
+          const credPercent = Math.round(article.credibilityScore);
           const isBufferActive = article.ingestionStatus === 'buffer_active';
 
           return (
@@ -1132,11 +1138,11 @@ export function NewsHub() {
                       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
                         <div
                           className="h-full bg-brand-emerald transition-all duration-300"
-                          style={{ width: `${realPercent}%` }}
+                          style={{ width: `${credPercent}%` }}
                         />
                       </div>
                       <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-brand-emerald">
-                        {realPercent}%
+                        {credPercent}%
                       </span>
                     </div>
 
@@ -2026,9 +2032,8 @@ function NewsDrillDownPage({
   const summaryText = article.summaries[lang] ?? article.summaries.en;
   const titleText = article.titles[lang] ?? article.titles.en;
   const totalVotes = (article.realVotes ?? 0) + (article.hoaxVotes ?? 0) + (article.contextVotes ?? 0);
-  const realPercent = totalVotes > 0
-    ? Math.round(((article.realVotes ?? 0) / totalVotes) * 100)
-    : Math.round(article.credibilityScore);
+  // Meter mirrors the card view — live credibility, not a vote ratio.
+  const credPercent = Math.round(article.credibilityScore);
 
   const allDispatches = [
     ...(article.leadReporter ? [article.leadReporter] : []),
@@ -2130,11 +2135,11 @@ function NewsDrillDownPage({
               <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
                 <div
                   className="h-full bg-brand-emerald transition-all duration-300"
-                  style={{ width: `${realPercent}%` }}
+                  style={{ width: `${credPercent}%` }}
                 />
               </div>
               <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-brand-emerald">
-                {realPercent}%
+                {credPercent}%
               </span>
             </div>
 

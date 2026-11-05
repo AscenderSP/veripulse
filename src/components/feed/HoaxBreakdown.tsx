@@ -30,9 +30,9 @@ export function HoaxBreakdown({ story }: { story: Story }) {
       `Synthetically generated text or altered media detected (${Math.round(story.ai_probability_score)}% AI score).`,
     );
   }
-  if (story.credibility_score < 35) {
+  if (story.credibility_score < 30) {
     flaggedReasons.push(
-      `Consensus threshold crossed: 5+ high-trust Sentinels flagged this as fabricated or unsubstantiated.`,
+      `Consensus threshold crossed: high-trust Sentinels flagged this as fabricated or unsubstantiated.`,
     );
   }
   if (story.completeness_score < 50) {

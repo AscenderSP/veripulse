@@ -196,6 +196,12 @@ export function Feed({
   }, [scope, vault, load, cacheKey]);
 
   async function handleVote(story: Story, vote: VoteAction): Promise<VoteOutcome> {
+    // Must be signed in (or have a demo profile picked) before voting.
+    // Opens the sign-in sheet if not — no optimistic shift happens
+    // because the vote never leaves this function.
+    const authed = requireAuth(() => true);
+    if (!authed) return { error: 'Sign in to vote.' };
+
     const captcha = await requireHuman({ reason: 'Confirm you are human before casting a consensus vote.' });
     if (!captcha.ok) {
       return { error: 'Captcha not completed.' };
