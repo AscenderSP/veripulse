@@ -54,7 +54,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiUrl } from '@/lib/api';
 import { formatINR, cn } from '@/lib/utils';
 import type { Product, ProductReview, ProductCategory, ProductMetricScores, HeadToHeadBattle, Lang } from '@/lib/types';
-import { useSession } from '@/hooks/useSession';
+import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { DecayIndex } from '@/components/product/DecayIndex';
@@ -163,6 +163,7 @@ function ProductCardImage({
 
 export function ProductMatrix() {
   const { profile, user } = useSession();
+  const requireAuth = useRequireAuth();
   const { lang } = useLang();
 
   // Local state with persistence for user-submitted reviews
@@ -286,7 +287,10 @@ export function ProductMatrix() {
   const [votedBattles, setVotedBattles] = useState<Record<string, 'productA' | 'productB'>>({});
 
   function handleVoteBattle(battleId: string, choice: 'productA' | 'productB') {
+    // One vote per battle — final. Matches the news / live-circle rule.
     if (votedBattles[battleId]) return;
+    const authed = requireAuth(() => true);
+    if (!authed) return;
     setVotedBattles((prev) => ({ ...prev, [battleId]: choice }));
     setBattles((prev) =>
       prev.map((b) => {

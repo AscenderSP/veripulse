@@ -392,21 +392,16 @@ export function NewsHub() {
     });
   }, [articles, selectedCategory, selectedTag, c2paOnly, searchQuery, sortBy, lang]);
 
-  // Handle live credibility voting
+  // Handle live credibility voting. One vote per article, no unvote, no
+  // switching sides — matches the DB-side lock in cast_weighted_vote
+  // (migration 0015) and the identical rule in Feed / StoryCard.
   const handleVote = (articleId: string, vote: ConsensusVote) => {
-    // Voting requires an authenticated session. In live mode this opens
-    // the sign-in sheet; in demo it's a no-op until a profile is picked.
     const authed = requireAuth(() => true);
     if (!authed) return;
 
-    const previousVote = userVotes[articleId];
-    const isTogglingOff = previousVote === vote;
-    const newVote = isTogglingOff ? null : vote;
+    // Already voted on this article — vote is final.
+    if (userVotes[articleId]) return;
 
-    // Build the full voter context so the optimistic shift mirrors what
-    // the server's cast_weighted_vote RPC will land at. Distance is left
-    // null since article has no geom on the client — the server applies
-    // the 10km bonus from the real home_lat/lng.
     const article = articles.find((a) => a.id === articleId);
     const priorVoteCount =
       (article?.realVotes ?? 0) +
@@ -425,51 +420,23 @@ export function NewsHub() {
       prev.map((art) => {
         if (art.id !== articleId) return art;
 
-        let newCredibility = art.credibilityScore;
-        let realCount = art.realVotes ?? 0;
-        let hoaxCount = art.hoaxVotes ?? 0;
-        let contextCount = art.contextVotes ?? 0;
-
-        if (previousVote === 'real') realCount = Math.max(0, realCount - 1);
-        if (previousVote === 'hoax') hoaxCount = Math.max(0, hoaxCount - 1);
-        if (previousVote === 'needs_context') contextCount = Math.max(0, contextCount - 1);
-
-        if (newVote === 'real') {
-          realCount += 1;
-          newCredibility = nextCredibility(art.credibilityScore, 'real', weight);
-        } else if (newVote === 'hoax') {
-          hoaxCount += 1;
-          newCredibility = nextCredibility(art.credibilityScore, 'hoax', weight);
-        } else if (newVote === 'needs_context') {
-          contextCount += 1;
-          newCredibility = nextCredibility(art.credibilityScore, 'needs_context', weight);
-        }
-
+        const newCredibility = nextCredibility(art.credibilityScore, vote, weight);
         const updated = {
           ...art,
           credibilityScore: Math.round(newCredibility),
-          realVotes: realCount,
-          hoaxVotes: hoaxCount,
-          contextVotes: contextCount,
+          realVotes: (art.realVotes ?? 0) + (vote === 'real' ? 1 : 0),
+          hoaxVotes: (art.hoaxVotes ?? 0) + (vote === 'hoax' ? 1 : 0),
+          contextVotes: (art.contextVotes ?? 0) + (vote === 'needs_context' ? 1 : 0),
         };
 
         if (drillDownArticle?.id === articleId) {
           setDrillDownArticle(updated);
         }
-
         return updated;
       }),
     );
 
-    setUserVotes((prev) => {
-      const next = { ...prev };
-      if (newVote === null) {
-        delete next[articleId];
-      } else {
-        next[articleId] = newVote;
-      }
-      return next;
-    });
+    setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
   };
 
   // Rule check: only journalist verified paid accounts can post news
@@ -1152,6 +1119,7 @@ export function NewsHub() {
                       <ConsensusChip
                         tone="emerald"
                         active={currentVote === 'real'}
+                        disabled={currentVote != null}
                         icon={<CheckCircle2 size={12} />}
                         label={t('realVotes', lang)}
                         onClick={() => handleVote(article.id, 'real')}
@@ -1159,6 +1127,7 @@ export function NewsHub() {
                       <ConsensusChip
                         tone="amber"
                         active={currentVote === 'needs_context'}
+                        disabled={currentVote != null}
                         icon={<HelpCircle size={12} />}
                         label={lang === 'bn' ? 'প্রসঙ্গ প্রয়োজন' : lang === 'hi' ? 'संदर्भ चाहिए' : 'Context'}
                         onClick={() => handleVote(article.id, 'needs_context')}
@@ -1166,6 +1135,7 @@ export function NewsHub() {
                       <ConsensusChip
                         tone="rose"
                         active={currentVote === 'hoax'}
+                        disabled={currentVote != null}
                         icon={<AlertTriangle size={12} />}
                         label={t('hoaxVotes', lang)}
                         onClick={() => handleVote(article.id, 'hoax')}
@@ -1563,6 +1533,7 @@ const CONSENSUS_TONE: Record<
 function ConsensusChip({
   tone,
   active,
+  disabled = false,
   icon,
   label,
   count,
@@ -1570,6 +1541,7 @@ function ConsensusChip({
 }: {
   tone: ConsensusTone;
   active: boolean;
+  disabled?: boolean;
   icon: React.ReactNode;
   label: string;
   /** Optional vote count — rendered as a smaller suffix inside the chip. */
@@ -1577,16 +1549,21 @@ function ConsensusChip({
   onClick: () => void;
 }) {
   const t = CONSENSUS_TONE[tone];
+  const muted = disabled && !active;
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
+      aria-disabled={disabled}
       className={cn(
         // w-full so each chip fills its grid cell on mobile; the chips row
         // uses `grid grid-cols-3` on narrow widths and `sm:flex` beyond.
         // `justify-center` keeps icon+label visually balanced in the cell.
         'press-effect flex w-full items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md min-w-0',
         active ? 'shadow-sm' : 'hover:brightness-110',
+        disabled && 'cursor-not-allowed',
+        muted && 'opacity-45',
       )}
       style={
         active
@@ -2149,6 +2126,7 @@ function NewsDrillDownPage({
               <ConsensusChip
                 tone="emerald"
                 active={userVote === 'real'}
+                disabled={userVote != null}
                 icon={<CheckCircle2 size={13} />}
                 label="Verify Real"
                 count={article.realVotes ?? 100}
@@ -2157,6 +2135,7 @@ function NewsDrillDownPage({
               <ConsensusChip
                 tone="amber"
                 active={userVote === 'needs_context'}
+                disabled={userVote != null}
                 icon={<HelpCircle size={13} />}
                 label="Needs Context"
                 count={article.contextVotes ?? 10}
@@ -2165,6 +2144,7 @@ function NewsDrillDownPage({
               <ConsensusChip
                 tone="rose"
                 active={userVote === 'hoax'}
+                disabled={userVote != null}
                 icon={<AlertTriangle size={13} />}
                 label="Flag Hoax"
                 count={article.hoaxVotes ?? 5}

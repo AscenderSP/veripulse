@@ -60,6 +60,11 @@ export function StoryCard({
   }, [story.credibility_score, story.rollout_stage]);
 
   async function handleVote(v: VoteAction) {
+    // One vote per story — final. If the user already voted (this session
+    // or server-echoed), ignore the click. The DB also enforces this via
+    // cast_weighted_vote (migration 0015), so a racing double-click is
+    // rejected server-side with ALREADY_VOTED.
+    if (voted) return;
     setVoteError(null);
     await triggerVoteHaptic();
     const out = await onVote(story, v);
@@ -238,6 +243,7 @@ export function StoryCard({
         <div className="flex shrink-0 items-center gap-1.5">
           <VoteButton
             active={voted === 'real'}
+            disabled={voted !== null}
             onClick={() => handleVote('real')}
             icon={<CheckCircle2 size={14} />}
             label={t('verifyReal', lang)}
@@ -245,6 +251,7 @@ export function StoryCard({
           />
           <VoteButton
             active={voted === 'needs_context'}
+            disabled={voted !== null}
             onClick={() => handleVote('needs_context')}
             icon={<HelpCircle size={14} />}
             label={t('needsContext', lang)}
@@ -252,6 +259,7 @@ export function StoryCard({
           />
           <VoteButton
             active={voted === 'hoax'}
+            disabled={voted !== null}
             onClick={() => handleVote('hoax')}
             icon={<AlertTriangle size={14} />}
             label={t('flagHoax', lang)}
@@ -361,25 +369,34 @@ const TONE: Record<
 
 function VoteButton({
   active,
+  disabled = false,
   onClick,
   icon,
   label,
   tone,
 }: {
   active: boolean;
+  disabled?: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
   tone: VoteTone;
 }) {
   const t = TONE[tone];
+  // Dimmed when the vote is locked but this wasn't the user's choice —
+  // makes the single-vote rule visible without hiding the losing options.
+  const muted = disabled && !active;
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
+      aria-disabled={disabled}
       className={cn(
         'press-effect flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition-all backdrop-blur-md',
         active ? 'shadow-sm' : 'hover:brightness-110',
+        disabled && 'cursor-not-allowed',
+        muted && 'opacity-45',
       )}
       style={
         active

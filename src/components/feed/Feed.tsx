@@ -23,7 +23,7 @@ import { IncidentMap } from './IncidentMap';
 import { DEMO_STORIES, DEMO_TIMELINE, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api';
-import { nextCredibility, nextStage, voteScalar, voteWeight } from '@/lib/consensus';
+import { nextCredibility, nextStage, voteWeight } from '@/lib/consensus';
 import { cn, distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -39,6 +39,7 @@ const VOTE_ERRORS: Record<string, string> = {
   RING_RESTRICTED: 'This story is still in a review ring above your tier.',
   CANNOT_VOTE_OWN_STORY: "You can't vote on your own report.",
   AUTH_REQUIRED: 'Sign in to vote.',
+  ALREADY_VOTED: 'You already voted on this story. Votes are final.',
 };
 
 // Global in-memory cache for instant 0ms tab switching
@@ -233,8 +234,10 @@ export function Feed({
   }
 
   function demoVote(story: Story, vote: VoteAction): VoteOutcome {
+    // One vote per story — final. Repeat / switch attempts return the
+    // current credibility unchanged so the UI simply re-paints the lock.
     const prev = demoVotes.current[story.id];
-    if (prev?.vote === vote) return { credibility: story.credibility_score, stage: story.rollout_stage };
+    if (prev) return { credibility: story.credibility_score, stage: story.rollout_stage };
 
     const weight = voteWeight({
       trustScore: profile?.trust_score ?? 50,
@@ -244,11 +247,7 @@ export function Feed({
       distanceKm: null,
       priorVoteCount: 0,
     });
-    let cred = story.credibility_score;
-    // Back out the previous demo delta with the same K=1.0 base used
-    // in cast_weighted_vote (migration 0013).
-    if (prev) cred -= 1.0 * voteScalar(prev.vote) * prev.weight;
-    cred = nextCredibility(cred, vote, weight);
+    const cred = nextCredibility(story.credibility_score, vote, weight);
     const stage = nextStage(story.rollout_stage, cred);
     demoVotes.current[story.id] = { vote, weight };
     setStories((list) => {
