@@ -509,6 +509,8 @@ export function NewsHub() {
     location: string;
     mediaUrl?: string;
   }) => {
+    const authed = requireAuth(() => true);
+    if (!authed) return;
     const reporterName = profile?.full_name ?? profile?.username ?? 'Anonymous Reporter';
     const reporterUsername = profile?.username ?? 'reporter';
     const reporterAvatar = profile?.avatar_url ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';

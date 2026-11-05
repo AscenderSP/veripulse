@@ -42,7 +42,7 @@ import { GLOBAL_AREA, type Area } from './AreaSwitcher';
 // Feed is the default landing section, so it stays in the initial bundle.
 import { Feed } from '@/components/feed/Feed';
 import { Card } from '@/components/ui/primitives';
-import { useSession } from '@/hooks/useSession';
+import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
 import { DEMO_LEADERBOARD, DEMO_STORIES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -159,6 +159,7 @@ export function AppShell() {
   const [fabSignal, setFabSignal] = useState(false);
   const vaultCount = useQuarantineCount();
   const { profile } = useSession();
+  const requireAuth = useRequireAuth();
   const { lang } = useLang();
 
   // Rehydrate the active section from localStorage once on mount so refresh
@@ -436,6 +437,13 @@ export function AppShell() {
         openSignal={fabSignal}
         onConsumeSignal={() => setFabSignal(false)}
         onAction={(action) => {
+          // All three FAB actions publish state (a report, a dispatch, or an
+          // escrowed bounty) — gate the whole menu behind a signed-in profile.
+          // In live mode this opens the sign-in sheet; in demo mode it pops the
+          // profile picker. Demo users stay signed in as DEMO_PROFILE until they
+          // explicitly switch (SwitchAccountPage) or sign out.
+          const authed = requireAuth(() => true);
+          if (!authed) return;
           if (action === 'post_report') {
             switchSection('compose');
           } else if (action === 'dispatch_news') {

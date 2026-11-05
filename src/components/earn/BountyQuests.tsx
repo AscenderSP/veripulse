@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { BOUNTY_SIGNAL_KEY } from '@/components/shell/PostFab';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useBackClose } from '@/hooks/useBackClose';
+import { useRequireAuth } from '@/hooks/useSession';
 import {
   Target,
   IndianRupee,
@@ -45,6 +46,7 @@ export { isBountyExpired, formatBountyTimeRemaining, BOUNTY_EXPIRY_MS, BOUNTY_EX
 
 export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: number) => void }) {
   const { lang } = useLang();
+  const requireAuth = useRequireAuth();
   const [bounties, setBounties] = useState<BountyQuest[]>(DEMO_BOUNTIES);
   const [subView, setSubView] = useState<'tasks' | 'leaderboard'>('tasks');
   const [activeFilter, setActiveFilter] = useState<'all' | 'open' | 'expired' | 'claimed'>('open');
@@ -90,6 +92,8 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
     location: string;
     proofRequired: string;
   }) {
+    const authed = requireAuth(() => true);
+    if (!authed) return;
     const rewardVp = inrToVPCoins(questData.rewardInr);
     const quest: BountyQuest = {
       id: `b-${Date.now()}`,
@@ -123,6 +127,8 @@ export function BountyQuests({ onClaimSuccess }: { onClaimSuccess?: (reward: num
 
   async function handleCompleteClaim(bountyId: string, proof: string) {
     if (!proof.trim()) return;
+    const authed = requireAuth(() => true);
+    if (!authed) return;
 
     const b = bounties.find((x) => x.id === bountyId);
     if (!b || isBountyExpired(b)) return;
