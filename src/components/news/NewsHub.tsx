@@ -253,7 +253,7 @@ function mapStoryToArticle(s: any): NewsArticle {
 
 export function NewsHub() {
   const { lang } = useLang();
-  const { profile, updateProfile, patchDemoProfile } = useSession();
+  const { profile, user, updateProfile, patchDemoProfile } = useSession();
   const requireAuth = useRequireAuth();
   const { requireHuman: requireHumanTop } = useCaptchaGate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory | 'all'>('all');
@@ -363,8 +363,25 @@ export function NewsHub() {
       unsubRefresh();
     };
   }, []);
-  // User's active votes: articleId -> ConsensusVote
-  const [userVotes, setUserVotes] = useState<Record<string, ConsensusVote>>({});
+  // Active votes keyed by (profile.id → articleId → vote), so switching
+  // dummy accounts in the same browser doesn't inherit the other user's
+  // locked votes. One vote per article per profile is still enforced.
+  const [userVotesByProfile, setUserVotesByProfile] = useState<
+    Record<string, Record<string, ConsensusVote>>
+  >({});
+  const currentProfileId = profile?.id ?? '__anon__';
+  const userVotes = userVotesByProfile[currentProfileId] ?? {};
+  const setUserVotes = (
+    updater:
+      | Record<string, ConsensusVote>
+      | ((prev: Record<string, ConsensusVote>) => Record<string, ConsensusVote>),
+  ) => {
+    setUserVotesByProfile((prev) => {
+      const cur = prev[currentProfileId] ?? {};
+      const next = typeof updater === 'function' ? updater(cur) : updater;
+      return { ...prev, [currentProfileId]: next };
+    });
+  };
   // Selected article for drill-down modal
   const [drillDownArticle, setDrillDownArticle] = useState<NewsArticle | null>(null);
   // Initial tab inside drill-down
@@ -492,9 +509,14 @@ export function NewsHub() {
     );
     setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
 
-    // 2. Demo mode (or an article that isn't backed by a stories row) —
-    //    nothing more to do; the local shift is the final state.
-    if (!isSupabaseConfigured() || !isUuid(articleId)) return;
+    // 2. Skip the server round-trip when:
+    //    - Supabase isn't configured (full demo mode), or
+    //    - the article id isn't a stories-row UUID (demo slug), or
+    //    - there is no Supabase JWT (preset dummy / SwitchAccountPage).
+    //    The last one is what makes the two-account test work: /api/votes/
+    //    cast would 401 with AUTH_REQUIRED and the rollback would wipe
+    //    the vote, so the user saw it "reset" the moment they pressed.
+    if (!isSupabaseConfigured() || !isUuid(articleId) || !user) return;
 
     // 3. Captcha + persist. The server's cast_weighted_vote returns the
     //    authoritative new credibility; swap the optimistic value for it

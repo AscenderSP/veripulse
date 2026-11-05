@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Story, StoryStage, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
+import { useSession } from '@/hooks/useSession';
 import { Badge, CredMeter, Card } from '@/components/ui/primitives';
 import { stageMeta, timeAgo, cn } from '@/lib/utils';
 import { t } from '@/lib/translations';
@@ -40,6 +41,7 @@ export function StoryCard({
   loadTimeline: (storyId: string) => Promise<StoryTimelineNode[]>;
 }) {
   const { lang } = useLang();
+  const { profile } = useSession();
   const [open, setOpen] = useState(false);
   const [voted, setVoted] = useState<VoteAction | null>(null);
   const [cred, setCred] = useState(story.credibility_score);
@@ -47,6 +49,14 @@ export function StoryCard({
   const [voteError, setVoteError] = useState<string | null>(null);
   const [nodes, setNodes] = useState<StoryTimelineNode[] | null>(null);
   const meta = stageMeta(stage);
+
+  // When the active profile changes (SwitchAccountPage) reset the local
+  // vote lock. Account A's vote shouldn't lock account B out, and the
+  // credibility re-syncs from the story prop already.
+  useEffect(() => {
+    setVoted(null);
+    setVoteError(null);
+  }, [profile?.id]);
 
   // The DB function substitutes a category stock URL into media_url when no
   // real photo was attached, so nullness alone isn't enough; detect stock IDs.

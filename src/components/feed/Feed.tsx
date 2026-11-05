@@ -70,7 +70,7 @@ export function Feed({
   area: Area;
   onAreaChange?: (a: Area) => void;
 }) {
-  const { demo, profile } = useSession();
+  const { demo, user, profile } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
   const { requireHuman } = useCaptchaGate();
@@ -101,8 +101,22 @@ export function Feed({
     window.setTimeout(() => setHighlightedStoryId(null), 2200);
   }, []);
 
-  // demo-mode vote memory so switching votes reverses like the SQL does
-  const demoVotes = useRef<Record<string, { vote: VoteAction; weight: number }>>({});
+  // Demo / preset-dummy vote memory, keyed by (profile.id → story.id)
+  // so switching accounts in one browser gives each account its own
+  // single-vote-per-story slate. One vote per (profile, story) is still
+  // enforced by the demoVote guard.
+  const demoVotesByProfile = useRef<
+    Record<string, Record<string, { vote: VoteAction; weight: number }>>
+  >({});
+  const demoProfileKey = profile?.id ?? '__anon__';
+  const demoVotes = {
+    get current(): Record<string, { vote: VoteAction; weight: number }> {
+      if (!demoVotesByProfile.current[demoProfileKey]) {
+        demoVotesByProfile.current[demoProfileKey] = {};
+      }
+      return demoVotesByProfile.current[demoProfileKey];
+    },
+  };
 
   const load = useCallback(async () => {
     // If we have no cached stories, show skeleton
@@ -207,7 +221,11 @@ export function Feed({
     if (!captcha.ok) {
       return { error: 'Captcha not completed.' };
     }
-    if (demo) return demoVote(story, vote);
+    // No Supabase JWT (preset dummy / SwitchAccountPage) → the server
+    // would reject with AUTH_REQUIRED and roll back the optimistic patch,
+    // which looks like the vote "resetting". Stay local instead so the
+    // dummy account can exercise the full flow against stub data.
+    if (demo || !user) return demoVote(story, vote);
     const res = await requireAuth(() =>
       apiFetch('/api/votes/cast', {
         method: 'POST',
