@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, X, PenSquare, Radio, Newspaper, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerTapHaptic } from '@/lib/nativeHardware';
-import { useBackClose } from '@/hooks/useBackClose';
 
 export const DISPATCH_SIGNAL_KEY = 'veripulse_open_news_dispatch_v1';
 
@@ -34,7 +33,13 @@ interface PostFabProps {
 export function PostFab({ onAction, openSignal, onConsumeSignal }: PostFabProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  useBackClose(open, () => setOpen(false));
+  // NOTE: deliberately no useBackClose here. The FAB menu is an in-page
+  // overlay, not a drill-down section. Pushing a history sentinel here
+  // collides with the sentinel that the Compose section pushes when a
+  // user picks "Post Citizen Report": the FAB's cleanup fires
+  // history.back() async, which then pops Compose's sentinel and snaps
+  // the user back to Live Circle before the Composer ever renders.
+  // Outside-click + Escape (below) already cover the close paths.
 
   // External open signal (used by the mobile nav + button).
   useEffect(() => {
