@@ -45,6 +45,7 @@ import { voteWeight, nextCredibility, type ConsensusVote } from '@/lib/consensus
 import { AudioReadout } from '@/components/feed/AudioReadout';
 import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { apiFetch } from '@/lib/api';
 import {
   findDuplicateNews,
   synthesizeMultiReporterSummary,
@@ -167,6 +168,13 @@ function AuthenticityBadge({
   );
 }
 
+// Articles whose id is a UUID are backed by a `stories` row and therefore
+// vote-persistable through cast_weighted_vote. Demo articles use slug ids.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v: string): boolean {
+  return UUID_RE.test(v);
+}
+
 function mapStoryToArticle(s: any): NewsArticle {
   const catRaw = (s.category || 'Politics').toLowerCase();
   let category: NewsCategory = 'politics';
@@ -247,6 +255,7 @@ export function NewsHub() {
   const { lang } = useLang();
   const { profile, updateProfile, patchDemoProfile } = useSession();
   const requireAuth = useRequireAuth();
+  const { requireHuman: requireHumanTop } = useCaptchaGate();
   const [selectedCategory, setSelectedCategory] = useState<NewsCategory | 'all'>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -302,9 +311,48 @@ export function NewsHub() {
 
     loadLiveStories();
 
+    // Live propagation: another user's vote lands here as a stories UPDATE.
+    // Patch just the affected article in place so every viewer sees the
+    // authoritative credibility and stage within a frame of the DB commit.
+    // INSERT / DELETE still trigger a full reload so new wire stories and
+    // takedowns show up without needing to refresh the tab.
     const channel = sb
       .channel('news_hub_live_stream')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stories' }, (payload) => {
+        const row = payload.new as {
+          id: string;
+          credibility_score?: number;
+          rollout_stage?: string;
+          authenticity_score?: number;
+        };
+        if (!row?.id) return;
+        setArticles((prev) => {
+          const patched = prev.map((a) =>
+            a.id === row.id
+              ? {
+                  ...a,
+                  credibilityScore:
+                    row.credibility_score != null
+                      ? Math.round(Number(row.credibility_score))
+                      : a.credibilityScore,
+                  authenticityScore:
+                    row.authenticity_score != null
+                      ? Number(row.authenticity_score)
+                      : a.authenticityScore,
+                  stage: (row.rollout_stage as typeof a.stage) ?? a.stage,
+                }
+              : a,
+          );
+          if (typeof window !== 'undefined') {
+            (window as any).__VERIPULSE_NEWS_CACHE__ = patched;
+          }
+          return patched;
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => {
+        loadLiveStories();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'stories' }, () => {
         loadLiveStories();
       })
       .subscribe();
@@ -395,18 +443,25 @@ export function NewsHub() {
   // Handle live credibility voting. One vote per article, no unvote, no
   // switching sides — matches the DB-side lock in cast_weighted_vote
   // (migration 0015) and the identical rule in Feed / StoryCard.
-  const handleVote = (articleId: string, vote: ConsensusVote) => {
+  //
+  // Live mode: optimistically shift the local credibility, then POST to
+  // /api/votes/cast so every other viewer picks the authoritative value
+  // up over the realtime stories UPDATE subscription. On server error the
+  // optimistic patch is rolled back and userVotes is cleared so the user
+  // can try again (or see why they can't — e.g. ALREADY_VOTED).
+  //
+  // Demo mode (no Supabase): purely local — same math, no persistence.
+  const handleVote = async (articleId: string, vote: ConsensusVote) => {
     const authed = requireAuth(() => true);
     if (!authed) return;
-
-    // Already voted on this article — vote is final.
     if (userVotes[articleId]) return;
 
     const article = articles.find((a) => a.id === articleId);
+    if (!article) return;
     const priorVoteCount =
-      (article?.realVotes ?? 0) +
-      (article?.hoaxVotes ?? 0) +
-      (article?.contextVotes ?? 0);
+      (article.realVotes ?? 0) +
+      (article.hoaxVotes ?? 0) +
+      (article.contextVotes ?? 0);
     const weight = voteWeight({
       trustScore: profile?.trust_score ?? 50,
       tier: (profile?.tier as 'sentinel_t1' | 'validator_t2' | 'public' | undefined) ?? 'public',
@@ -416,10 +471,13 @@ export function NewsHub() {
       priorVoteCount,
     });
 
+    const prevCred = article.credibilityScore;
+    const prevStage = article.stage;
+
+    // 1. Optimistic patch — identical to the old purely-local flow.
     setArticles((prev) =>
       prev.map((art) => {
         if (art.id !== articleId) return art;
-
         const newCredibility = nextCredibility(art.credibilityScore, vote, weight);
         const updated = {
           ...art,
@@ -428,15 +486,68 @@ export function NewsHub() {
           hoaxVotes: (art.hoaxVotes ?? 0) + (vote === 'hoax' ? 1 : 0),
           contextVotes: (art.contextVotes ?? 0) + (vote === 'needs_context' ? 1 : 0),
         };
-
-        if (drillDownArticle?.id === articleId) {
-          setDrillDownArticle(updated);
-        }
+        if (drillDownArticle?.id === articleId) setDrillDownArticle(updated);
         return updated;
       }),
     );
-
     setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
+
+    // 2. Demo mode (or an article that isn't backed by a stories row) —
+    //    nothing more to do; the local shift is the final state.
+    if (!isSupabaseConfigured() || !isUuid(articleId)) return;
+
+    // 3. Captcha + persist. The server's cast_weighted_vote returns the
+    //    authoritative new credibility; swap the optimistic value for it
+    //    (the realtime UPDATE will reach other sessions on its own).
+    try {
+      const captcha = await requireHumanTop({ reason: 'Confirm you are human before casting a consensus vote.' });
+      if (!captcha.ok) throw new Error('CAPTCHA_REQUIRED');
+
+      const res = await apiFetch('/api/votes/cast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story_id: articleId, vote, captcha_token: captcha.token }),
+      });
+      if (!res || !res.ok) {
+        const err = await res?.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'VOTE_FAILED');
+      }
+      const data = (await res.json()) as { credibility: number; stage: string };
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId
+            ? {
+                ...a,
+                credibilityScore: Math.round(Number(data.credibility)),
+                stage: (data.stage as typeof a.stage) ?? a.stage,
+              }
+            : a,
+        ),
+      );
+    } catch {
+      // Roll the optimistic patch back and let the user try again. The
+      // ALREADY_VOTED case is harmless — the real row is unchanged, so
+      // the rollback restores the correct view.
+      setArticles((prev) =>
+        prev.map((art) =>
+          art.id === articleId
+            ? {
+                ...art,
+                credibilityScore: prevCred,
+                stage: prevStage,
+                realVotes: Math.max(0, (art.realVotes ?? 0) - (vote === 'real' ? 1 : 0)),
+                hoaxVotes: Math.max(0, (art.hoaxVotes ?? 0) - (vote === 'hoax' ? 1 : 0)),
+                contextVotes: Math.max(0, (art.contextVotes ?? 0) - (vote === 'needs_context' ? 1 : 0)),
+              }
+            : art,
+        ),
+      );
+      setUserVotes((prev) => {
+        const next = { ...prev };
+        delete next[articleId];
+        return next;
+      });
+    }
   };
 
   // Rule check: only journalist verified paid accounts can post news
