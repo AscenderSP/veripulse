@@ -34,8 +34,30 @@ function writeList(list: Story[]): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(list));
+    return;
   } catch {
-    // Storage disabled or over quota — best-effort only.
+    /* fall through to recovery */
+  }
+  // Quota: try again progressively cheaper. Drop media_url on the oldest
+  // entries first (they're background noise), then drop entries wholesale
+  // until the newest post lands. Last post the user filed is NOT negotiable.
+  const stripped = list.map((s, i) => (i === 0 ? s : { ...s, media_url: null }));
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(stripped));
+    return;
+  } catch { /* still over */ }
+  for (let keep = Math.min(stripped.length, 5); keep >= 1; keep--) {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(stripped.slice(0, keep)));
+      return;
+    } catch { /* keep shrinking */ }
+  }
+  // Nothing fits — strip the newest post's media too and save just its text.
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify([{ ...list[0], media_url: null }]));
+  } catch {
+    /* localStorage genuinely unusable; the post is lost — same behavior
+       as before this recovery path existed. */
   }
 }
 

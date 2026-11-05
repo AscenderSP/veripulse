@@ -12,6 +12,7 @@ import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { addDemoStory } from '@/lib/demoStoryStore';
+import { shrinkDataUrl } from '@/lib/imageShrink';
 
 // Server returns these error codes with a `message` field; fall back to this
 // table when the server didn't supply one so the user sees something useful.
@@ -72,7 +73,12 @@ export function Composer({
         setMsg('No image captured.');
         return;
       }
-      setMedia(m);
+      // Phone photos are 5-10 MB raw; the full data URL blows through
+      // localStorage quota when the dummy path persists the story. Shrink
+      // to ~150 KB so demoStoryStore.writeList can commit without the
+      // catch-and-drop that would silently lose the whole post.
+      const shrunk = await shrinkDataUrl(m.dataUrl);
+      setMedia({ ...m, dataUrl: shrunk });
       setMsg(m.lat ? 'Photo captured with location lock.' : 'Photo captured — location unavailable.');
     } catch {
       setMsg('Capture cancelled.');
