@@ -873,6 +873,11 @@ export const UI_STRINGS: Record<string, Record<Lang, string>> = {
     bn: 'নেটওয়ার্ক ও বন্ধু',
     hi: 'नेटवर्क और मित्र',
   },
+  tabActivity: {
+    en: 'Activity',
+    bn: 'কার্যকলাপ',
+    hi: 'गतिविधि',
+  },
   tabSocial: {
     en: 'Social Links',
     bn: 'সোশ্যাল লিংক',

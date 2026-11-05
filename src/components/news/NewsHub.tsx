@@ -50,6 +50,7 @@ import {
   priorDemoVoteCount,
   recordVote as recordDemoVote,
 } from '@/lib/demoVoteStore';
+import { recordActivity } from '@/lib/demoActivityStore';
 import { AudioReadout } from '@/components/feed/AudioReadout';
 import { NEWS_CATEGORIES, DEMO_NEWS_ARTICLES, isSupabaseConfigured } from '@/lib/demoData';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -578,6 +579,19 @@ export function NewsHub() {
         }),
       );
       setUserVotes((prev) => ({ ...prev, [articleId]: vote }));
+      recordActivity({
+        profileId: profile?.id,
+        type: 'vote',
+        targetId: articleId,
+        targetLabel: article.titles?.en ?? null,
+        meta: {
+          vote,
+          weight: Math.round(weight * 100) / 100,
+          credibilityAfter: Math.round(result.credibility),
+          stageAfter: result.stage,
+          surface: 'news',
+        },
+      });
       return;
     }
 

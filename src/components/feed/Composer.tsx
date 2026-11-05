@@ -13,6 +13,7 @@ import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { addDemoStory } from '@/lib/demoStoryStore';
 import { shrinkDataUrl } from '@/lib/imageShrink';
+import { recordActivity } from '@/lib/demoActivityStore';
 
 // Server returns these error codes with a `message` field; fall back to this
 // table when the server didn't supply one so the user sees something useful.
@@ -122,13 +123,23 @@ export function Composer({
       // the post locally through the shared demoStoryStore instead so the
       // card lands on Live Circle and persists across refresh.
       if (!isSupabaseConfigured() || !user) {
-        addDemoStory({
+        const stored = addDemoStory({
           authorId: profile.id,
           text,
           locationName: place.trim() || (media?.lat ? 'Pinned location' : 'Unknown'),
           lat: media?.lat ?? null,
           lng: media?.lng ?? null,
           mediaUrl: media?.dataUrl ?? null,
+        });
+        recordActivity({
+          profileId: profile.id,
+          type: 'post',
+          targetId: stored.id,
+          targetLabel: stored.titles.en,
+          meta: {
+            location: stored.location_name,
+            hasPhoto: !!stored.media_url,
+          },
         });
         setMsg('Published to Live Circle (local preview — a real session persists to the Sentinel ring).');
       } else {

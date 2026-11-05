@@ -11,6 +11,7 @@ import {
   DEMO_ADMIN_EMAIL,
   isSupabaseConfigured,
 } from '@/lib/demoData';
+import { recordActivity } from '@/lib/demoActivityStore';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { ACCOUNT_TYPES, accountTypeDefaults } from '@/lib/accountTiers';
 
@@ -544,6 +545,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           };
           persistProfile(updated);
         }
+        // Log into the activity feed so the Citizen Profile can show
+        // "Followed @foo" / "Unfollowed @foo" alongside posts and votes.
+        const target = DEMO_NETWORK_USERS.find((u) => u.id === userId);
+        recordActivity({
+          profileId: profile?.id,
+          type: exists ? 'unfollow' : 'follow',
+          targetId: userId,
+          targetLabel: target?.name ?? target?.username ?? userId,
+        });
         return next;
       });
     },

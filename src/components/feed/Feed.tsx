@@ -31,6 +31,7 @@ import {
   recordVote as recordDemoVote,
 } from '@/lib/demoVoteStore';
 import { getDemoStories } from '@/lib/demoStoryStore';
+import { recordActivity } from '@/lib/demoActivityStore';
 import { cn, distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -339,6 +340,18 @@ export function Feed({
       baseStage: story.rollout_stage as ConsensusStage,
     });
     demoVotes.current[story.id] = { vote, weight };
+    recordActivity({
+      profileId: profile?.id,
+      type: 'vote',
+      targetId: story.id,
+      targetLabel: story.titles?.en ?? story.location_name ?? null,
+      meta: {
+        vote,
+        weight: Math.round(weight * 100) / 100,
+        credibilityAfter: result.credibility,
+        stageAfter: result.stage,
+      },
+    });
     setStories((list) => {
       const updated = routeByStage(
         list.map((x) =>

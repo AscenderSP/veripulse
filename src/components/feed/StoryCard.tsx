@@ -15,6 +15,8 @@ import {
   Clock,
   UserRound,
   Tag,
+  UserPlus,
+  UserCheck,
 } from 'lucide-react';
 import type { Story, StoryStage, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
@@ -42,7 +44,7 @@ export function StoryCard({
   loadTimeline: (storyId: string) => Promise<StoryTimelineNode[]>;
 }) {
   const { lang } = useLang();
-  const { profile } = useSession();
+  const { profile, followingIds, toggleFollow } = useSession();
   const [open, setOpen] = useState(false);
   const [voted, setVoted] = useState<VoteAction | null>(null);
   const [cred, setCred] = useState(story.credibility_score);
@@ -171,6 +173,14 @@ export function StoryCard({
             <span className="flex items-center gap-0.5">
               <UserRound size={10} /> {reporterLabel}
             </span>
+            {story.author_id && story.source !== 'rss' && profile && story.author_id !== profile.id && (
+              <FollowChip
+                targetId={story.author_id}
+                following={followingIds.includes(story.author_id)}
+                onToggle={() => toggleFollow(story.author_id!)}
+                lang={lang}
+              />
+            )}
             <span className="flex items-center gap-0.5">
               <MapPin size={10} /> {story.location_name}
             </span>
@@ -443,6 +453,50 @@ function VoteButton({
     >
       {icon}
       <span className="whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Tiny inline follow/unfollow pill that sits next to a story's author
+ * on StoryCard's meta row. One-tap follow from anywhere a user
+ * appears, no profile-page detour. Uses the existing toggleFollow
+ * context action, so the state is shared with Network tab.
+ */
+function FollowChip({
+  targetId,
+  following,
+  onToggle,
+  lang,
+}: {
+  targetId: string;
+  following: boolean;
+  onToggle: () => void;
+  lang: 'en' | 'bn' | 'hi';
+}) {
+  const label = following
+    ? (lang === 'bn' ? 'অনুসরণ করছেন' : lang === 'hi' ? 'फ़ॉलो किया' : 'Following')
+    : (lang === 'bn' ? 'ফলো' : lang === 'hi' ? 'फ़ॉलो' : 'Follow');
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // Stop bubbling so clicking the chip doesn't also toggle the card
+        // expand/collapse (`press-effect` handler on the whole card).
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-pressed={following}
+      aria-label={`${label}: ${targetId.slice(0, 10)}`}
+      className={cn(
+        'ml-1 flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold transition-all',
+        following
+          ? 'border-brand-emerald/40 bg-brand-emerald/10 text-brand-emerald'
+          : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:border-brand-emerald/40 hover:text-content-primary',
+      )}
+    >
+      {following ? <UserCheck size={10} /> : <UserPlus size={10} />}
+      {label}
     </button>
   );
 }

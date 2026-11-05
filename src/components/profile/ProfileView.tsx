@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import {
   User,
@@ -34,6 +34,12 @@ import {
   Smartphone,
   ArrowLeft,
   Coins,
+  Activity as ActivityIcon,
+  ThumbsUp,
+  ThumbsDown,
+  HelpCircle,
+  PenSquare,
+  Star,
 } from 'lucide-react';
 import { Button, Card, CustomSelect } from '@/components/ui/primitives';
 import { cn, formatINR, formatVPCoins, inrToVPCoins, timeAgo } from '@/lib/utils';
@@ -42,6 +48,13 @@ import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
 import { DEMO_PRESET_PROFILES, DEMO_NETWORK_USERS } from '@/lib/demoData';
 import { ThemeToggle } from '@/components/shell/ThemeToggle';
+import {
+  getActivity,
+  getActivityCounts,
+  clearActivity,
+  type ActivityEvent,
+  type ActivityType,
+} from '@/lib/demoActivityStore';
 import type { Profile, NetworkUser, SocialLinks, UserContact } from '@/lib/types';
 
 interface ProfileViewProps {
@@ -49,7 +62,7 @@ interface ProfileViewProps {
   onNavigateToWallet?: () => void;
 }
 
-type ProfileTab = 'overview' | 'verify' | 'network' | 'social' | 'settings';
+type ProfileTab = 'overview' | 'verify' | 'activity' | 'network' | 'social' | 'settings';
 
 export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProps) {
   const { lang } = useLang();
@@ -343,6 +356,12 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
           badge={profile.is_id_verified ? (lang === 'bn' ? 'যাচাইকৃত' : lang === 'hi' ? 'सत्यापित' : 'Verified') : (lang === 'bn' ? 'অপেক্ষমান' : lang === 'hi' ? 'लंबित' : 'Pending')}
         />
         <TabHeaderButton
+          active={activeTab === 'activity'}
+          onClick={() => setActiveTab('activity')}
+          icon={<ActivityIcon size={14} />}
+          label={t('tabActivity', lang)}
+        />
+        <TabHeaderButton
           active={activeTab === 'network'}
           onClick={() => setActiveTab('network')}
           icon={<Users size={14} />}
@@ -382,6 +401,13 @@ export function ProfileView({ onVerifyDoc, onNavigateToWallet }: ProfileViewProp
               showToast('Identity verified via DigiLocker! +5.0 Trust Points awarded.');
             }
           }}
+        />
+      )}
+
+      {activeTab === 'activity' && (
+        <ActivityTab
+          profileId={profile.id}
+          onToast={showToast}
         />
       )}
 
@@ -777,6 +803,169 @@ function VerificationCenterTab({
           </span>
         </div>
       </Card>
+    </div>
+  );
+}
+
+/** 3a. Activity Tab — chronological log of this profile's actions
+ *  across the site (posts, votes, follows, reviews). Reads from the
+ *  browser-side demoActivityStore so a preset dummy can see their own
+ *  history across reloads and section switches. */
+function ActivityTab({
+  profileId,
+  onToast,
+}: {
+  profileId: string;
+  onToast: (msg: string) => void;
+}) {
+  const { lang } = useLang();
+  const [events, setEvents] = useState<ActivityEvent[]>(() => getActivity(profileId));
+  const [filter, setFilter] = useState<ActivityType | 'all'>('all');
+
+  // Re-read when the profile changes (switching preset accounts) or on
+  // mount so a vote cast seconds before switching tabs shows up on
+  // first paint rather than after the next interaction.
+  useEffect(() => {
+    setEvents(getActivity(profileId));
+  }, [profileId]);
+
+  const counts = getActivityCounts(profileId);
+  const shown = filter === 'all' ? events : events.filter((e) => e.type === filter);
+
+  const typeMeta: Record<ActivityType, { icon: React.ReactNode; color: string; verb: string }> = {
+    post:     { icon: <PenSquare size={14} />,  color: 'text-brand-emerald', verb: lang === 'bn' ? 'পোস্ট করেছেন' : lang === 'hi' ? 'पोस्ट किया' : 'Posted' },
+    vote:     { icon: <ShieldCheck size={14} />, color: 'text-brand-sky',     verb: lang === 'bn' ? 'ভোট দিয়েছেন' : lang === 'hi' ? 'वोट दिया' : 'Voted on' },
+    review:   { icon: <Star size={14} />,        color: 'text-brand-amber',   verb: lang === 'bn' ? 'রিভিউ দিয়েছেন' : lang === 'hi' ? 'समीक्षा की' : 'Reviewed' },
+    follow:   { icon: <UserPlus size={14} />,    color: 'text-brand-emerald', verb: lang === 'bn' ? 'ফলো করেছেন' : lang === 'hi' ? 'फ़ॉलो किया' : 'Followed' },
+    unfollow: { icon: <UserCheck size={14} />,   color: 'text-content-muted', verb: lang === 'bn' ? 'আনফলো করেছেন' : lang === 'hi' ? 'अनफ़ॉलो किया' : 'Unfollowed' },
+  };
+
+  const voteIcon = (v: unknown) => {
+    if (v === 'real') return <ThumbsUp size={11} className="text-brand-emerald" />;
+    if (v === 'hoax') return <ThumbsDown size={11} className="text-brand-rose" />;
+    return <HelpCircle size={11} className="text-brand-amber" />;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Summary row */}
+      <Card className="p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ActivityStat label={lang === 'bn' ? 'পোস্ট' : lang === 'hi' ? 'पोस्ट' : 'Posts'}      value={counts.post}   icon={<PenSquare size={14} />}  color="text-brand-emerald" />
+          <ActivityStat label={lang === 'bn' ? 'ভোট' : lang === 'hi' ? 'वोट' : 'Votes'}           value={counts.vote}   icon={<ShieldCheck size={14} />} color="text-brand-sky" />
+          <ActivityStat label={lang === 'bn' ? 'রিভিউ' : lang === 'hi' ? 'समीक्षा' : 'Reviews'} value={counts.review} icon={<Star size={14} />}         color="text-brand-amber" />
+          <ActivityStat label={lang === 'bn' ? 'ফলো' : lang === 'hi' ? 'फ़ॉलो' : 'Follows'}      value={counts.follow} icon={<UserPlus size={14} />}    color="text-brand-emerald" />
+        </div>
+      </Card>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(['all', 'post', 'vote', 'review', 'follow'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+              filter === f
+                ? 'border-brand-emerald bg-brand-emerald/15 text-brand-emerald'
+                : 'border-[var(--border-subtle)] bg-bg-surface text-content-secondary hover:text-content-primary',
+            )}
+          >
+            {f === 'all' ? (lang === 'bn' ? 'সব' : lang === 'hi' ? 'सभी' : 'All') : typeMeta[f].verb}
+          </button>
+        ))}
+        {events.length > 0 && (
+          <button
+            onClick={() => {
+              clearActivity(profileId);
+              setEvents([]);
+              onToast(lang === 'bn' ? 'কার্যকলাপ মুছে ফেলা হয়েছে' : lang === 'hi' ? 'गतिविधि साफ़ कर दी गई' : 'Activity cleared.');
+            }}
+            className="ml-auto flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-bg-surface px-3 py-1 text-xs font-semibold text-content-secondary hover:text-content-primary"
+          >
+            <Trash2 size={12} /> {lang === 'bn' ? 'মুছুন' : lang === 'hi' ? 'साफ़ करें' : 'Clear'}
+          </button>
+        )}
+      </div>
+
+      {/* List */}
+      {shown.length === 0 ? (
+        <Card className="p-8 text-center">
+          <ActivityIcon size={28} className="mx-auto mb-2 text-content-muted" />
+          <div className="text-sm font-semibold text-content-primary">
+            {lang === 'bn' ? 'এখনও কোনও কার্যকলাপ নেই' : lang === 'hi' ? 'अभी तक कोई गतिविधि नहीं' : 'No activity yet'}
+          </div>
+          <div className="mt-1 text-xs text-content-muted">
+            {lang === 'bn'
+              ? 'আপনার পোস্ট, ভোট ও ফলো এখানে দেখা যাবে।'
+              : lang === 'hi'
+                ? 'आपके पोस्ट, वोट और फ़ॉलो यहाँ दिखेंगे।'
+                : 'Your posts, votes and follows will appear here.'}
+          </div>
+        </Card>
+      ) : (
+        <Card className="divide-y divide-[var(--border-subtle)]">
+          {shown.map((e) => {
+            const meta = typeMeta[e.type];
+            return (
+              <div key={e.id} className="flex items-start gap-3 p-3">
+                <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-elevated', meta.color)}>
+                  {meta.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="font-semibold text-content-primary">{meta.verb}</span>
+                    {e.targetLabel && (
+                      <span className="truncate text-content-secondary">{e.targetLabel}</span>
+                    )}
+                    {e.type === 'vote' && e.meta?.vote && (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-bg-elevated px-2 py-0.5 text-[10px] font-semibold text-content-secondary">
+                        {voteIcon(e.meta.vote)} {String(e.meta.vote).replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-content-muted">
+                    <span>{timeAgo(e.at)}</span>
+                    {e.type === 'post' && e.meta?.location && (
+                      <span className="flex items-center gap-0.5"><MapPin size={10} />{String(e.meta.location)}</span>
+                    )}
+                    {e.type === 'vote' && typeof e.meta?.credibilityAfter === 'number' && (
+                      <span>→ {e.meta.credibilityAfter}% cred</span>
+                    )}
+                    {e.type === 'vote' && e.meta?.surface && (
+                      <span className="rounded bg-bg-elevated px-1.5 py-0.5">{String(e.meta.surface)}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function ActivityStat({
+  label,
+  value,
+  icon,
+  color,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-bg-surface p-2.5">
+      <div className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-bg-elevated', color)}>
+        {icon}
+      </div>
+      <div>
+        <div className="font-mono text-lg font-bold text-content-primary">{value}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-content-muted">{label}</div>
+      </div>
     </div>
   );
 }
