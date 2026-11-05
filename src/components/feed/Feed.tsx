@@ -728,7 +728,13 @@ function FeedDropdown({
   const { onKeyDown } = useListboxKeys({ open: true, containerRef: ref, onClose });
   useEffect(() => {
     function h(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element | null;
+      // Skip clicks on any dropdown-trigger button. Mousedown fires before
+      // click, so without this skip a tap on the chip that owns this menu
+      // would close here and then be re-opened by the chip's own onClick
+      // — the menu would appear stuck.
+      if (target?.closest('[aria-expanded]')) return;
+      if (ref.current && !ref.current.contains(target)) onClose();
     }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);

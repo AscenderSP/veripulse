@@ -3785,7 +3785,10 @@ function PFDropdown({ children, onClose }: { children: React.ReactNode; onClose:
   const { onKeyDown } = useListboxKeys({ open: true, containerRef: ref, onClose });
   useEffect(() => {
     function h(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element | null;
+      // Skip dropdown-trigger buttons; the trigger's own onClick toggles.
+      if (target?.closest('[aria-expanded]')) return;
+      if (ref.current && !ref.current.contains(target)) onClose();
     }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
