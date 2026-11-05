@@ -44,7 +44,9 @@ import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { voteWeight, nextCredibility, type ConsensusVote, type ConsensusStage } from '@/lib/consensus';
 import {
   getProfileVotes as getDemoProfileVotes,
+  getVoteCounts as getDemoVoteCounts,
   overlayCredibility as overlayDemoCredibility,
+  overlayVoteCounts as overlayDemoVoteCounts,
   priorDemoVoteCount,
   recordVote as recordDemoVote,
 } from '@/lib/demoVoteStore';
@@ -277,10 +279,15 @@ export function NewsHub() {
     const base: NewsArticle[] =
       (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) ||
       DEMO_NEWS_ARTICLES;
-    return overlayDemoCredibility(
+    const withCred = overlayDemoCredibility(
       base,
       (a) => ({ id: a.id, credibility: a.credibilityScore, stage: a.stage as ConsensusStage }),
       (a, credibility, stage) => ({ ...a, credibilityScore: Math.round(credibility), stage }),
+    );
+    return overlayDemoVoteCounts(
+      withCred,
+      (a) => ({ id: a.id }),
+      (a, c) => ({ ...a, realVotes: c.real, hoaxVotes: c.hoax, contextVotes: c.needs_context }),
     );
   });
   const [isSyncing, setIsSyncing] = useState(false);
@@ -307,10 +314,15 @@ export function NewsHub() {
           setArticles((prev) => {
             const liveIds = new Set(live.map((a) => a.id));
             const remaining = prev.filter((a) => !liveIds.has(a.id));
-            const merged = overlayDemoCredibility(
+            const withCred = overlayDemoCredibility(
               [...live, ...remaining],
               (a) => ({ id: a.id, credibility: a.credibilityScore, stage: a.stage as ConsensusStage }),
               (a, credibility, stage) => ({ ...a, credibilityScore: Math.round(credibility), stage }),
+            );
+            const merged = overlayDemoVoteCounts(
+              withCred,
+              (a) => ({ id: a.id }),
+              (a, c) => ({ ...a, realVotes: c.real, hoaxVotes: c.hoax, contextVotes: c.needs_context }),
             );
             if (typeof window !== 'undefined') {
               (window as any).__VERIPULSE_NEWS_CACHE__ = merged;
@@ -535,7 +547,15 @@ export function NewsHub() {
         weight,
         baseCredibility: article.credibilityScore,
         baseStage: article.stage as ConsensusStage,
+        baseCounts: {
+          real: article.realVotes ?? 0,
+          hoax: article.hoaxVotes ?? 0,
+          needs_context: article.contextVotes ?? 0,
+        },
       });
+      // Pull the fresh absolute counts the store just wrote so the row
+      // matches what every other session will read on next overlay.
+      const absCounts = getDemoVoteCounts(articleId);
       setArticles((prev) =>
         prev.map((art) => {
           if (art.id !== articleId) return art;
@@ -543,10 +563,9 @@ export function NewsHub() {
             ...art,
             credibilityScore: Math.round(result.credibility),
             stage: result.stage,
-            realVotes: (art.realVotes ?? 0) + (vote === 'real' && !result.locked ? 1 : 0),
-            hoaxVotes: (art.hoaxVotes ?? 0) + (vote === 'hoax' && !result.locked ? 1 : 0),
-            contextVotes:
-              (art.contextVotes ?? 0) + (vote === 'needs_context' && !result.locked ? 1 : 0),
+            realVotes: absCounts?.real ?? art.realVotes,
+            hoaxVotes: absCounts?.hoax ?? art.hoaxVotes,
+            contextVotes: absCounts?.needs_context ?? art.contextVotes,
           };
           if (drillDownArticle?.id === articleId) setDrillDownArticle(patched);
           return patched;

@@ -30,6 +30,8 @@ const {
   priorDemoVoteCount,
   recordVote,
   overlayCredibility,
+  overlayVoteCounts,
+  getVoteCounts,
 } = await import('../src/lib/demoVoteStore.ts');
 
 const { voteWeight } = await import('../src/lib/consensus.ts');
@@ -184,6 +186,60 @@ describe('demoVoteStore – two dummy accounts, full lifecycle', () => {
       (r, credibility, stage) => ({ ...r, credibility, stage }),
     );
     assert.equal(untouched[0].credibility, 70);
+  });
+
+  test('per-vote-type counts seed from baseCounts, overlay is idempotent', () => {
+    const w = voteWeight({
+      trustScore: 50, tier: 'public', isJournalist: false,
+      isVerifiedOwner: false, distanceKm: null, priorVoteCount: 0,
+    });
+    assert.equal(getVoteCounts(STORY), null, 'no counts before any vote');
+
+    // First vote: baseCounts {10, 2, 3} seeds the store.
+    recordVote({
+      storyId: STORY, profileId: A, vote: 'hoax', weight: w,
+      baseCredibility: BASE, baseStage: 'tier_2',
+      baseCounts: { real: 10, hoax: 2, needs_context: 3 },
+    });
+    assert.deepEqual(getVoteCounts(STORY), { real: 10, hoax: 3, needs_context: 3 },
+      'hoax bumped from seeded base');
+
+    // Second vote (different profile): adds +1 to real. baseCounts ignored.
+    recordVote({
+      storyId: STORY, profileId: B, vote: 'real', weight: w,
+      baseCredibility: BASE, baseStage: 'tier_2',
+      baseCounts: { real: 999, hoax: 999, needs_context: 999 },
+    });
+    assert.deepEqual(getVoteCounts(STORY), { real: 11, hoax: 3, needs_context: 3 });
+
+    // A re-votes — locked, counts unchanged.
+    recordVote({ storyId: STORY, profileId: A, vote: 'real', weight: w, baseCredibility: BASE, baseStage: 'tier_2' });
+    assert.deepEqual(getVoteCounts(STORY), { real: 11, hoax: 3, needs_context: 3 });
+
+    // overlayVoteCounts SETS counts to stored absolute, ignoring row's current.
+    const rows = [{ id: STORY, realVotes: 999, hoaxVotes: 999, contextVotes: 999 }];
+    const patched = overlayVoteCounts(
+      rows,
+      (r) => ({ id: r.id }),
+      (r, c) => ({ ...r, realVotes: c.real, hoaxVotes: c.hoax, contextVotes: c.needs_context }),
+    );
+    assert.deepEqual(patched[0], { id: STORY, realVotes: 11, hoaxVotes: 3, contextVotes: 3 });
+
+    // Re-applying overlay is a no-op (idempotent).
+    const repatched = overlayVoteCounts(
+      patched,
+      (r) => ({ id: r.id }),
+      (r, c) => ({ ...r, realVotes: c.real, hoaxVotes: c.hoax, contextVotes: c.needs_context }),
+    );
+    assert.deepEqual(repatched[0], patched[0], 'overlay is idempotent — no double-count');
+
+    // Unknown row untouched.
+    const untouched = overlayVoteCounts(
+      [{ id: 'unknown', realVotes: 7, hoaxVotes: 0, contextVotes: 0 }],
+      (r) => ({ id: r.id }),
+      (r, c) => ({ ...r, realVotes: c.real, hoaxVotes: c.hoax, contextVotes: c.needs_context }),
+    );
+    assert.deepEqual(untouched[0], { id: 'unknown', realVotes: 7, hoaxVotes: 0, contextVotes: 0 });
   });
 
   test('full user-reported flow end-to-end', () => {

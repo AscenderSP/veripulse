@@ -14,8 +14,9 @@
  *   • State survives a page refresh.
  *
  * Shape (persisted):
- *   veripulse_demo_votes_v1      = { [storyId]: { [profileId]: vote } }
+ *   veripulse_demo_votes_v1       = { [storyId]: { [profileId]: vote } }
  *   veripulse_demo_credibility_v1 = { [storyId]: { credibility, stage } }
+ *   veripulse_demo_vote_counts_v1 = { [storyId]: { real, hoax, needs_context } }
  *
  * Both reads and writes are try/catch guarded — a disabled or full
  * localStorage never crashes the vote flow, it just behaves like the old
@@ -26,9 +27,12 @@ import { nextCredibility, nextStage, type ConsensusVote, type ConsensusStage } f
 
 const VOTES_KEY = 'veripulse_demo_votes_v1';
 const CRED_KEY = 'veripulse_demo_credibility_v1';
+const COUNTS_KEY = 'veripulse_demo_vote_counts_v1';
 
 type VotesMap = Record<string, Record<string, ConsensusVote>>;
 type CredMap = Record<string, { credibility: number; stage: ConsensusStage }>;
+export type VoteCounts = { real: number; hoax: number; needs_context: number };
+type CountsMap = Record<string, VoteCounts>;
 
 function readMap<T extends object>(key: string): T {
   if (typeof window === 'undefined') return {} as T;
@@ -86,6 +90,13 @@ export function priorDemoVoteCount(storyId: string): number {
   return Object.keys(m[storyId] ?? {}).length;
 }
 
+/** Per-vote-type tallies accumulated across every dummy profile in the
+ *  browser, or null when no dummy has voted on this story yet. */
+export function getVoteCounts(storyId: string): VoteCounts | null {
+  const m = readMap<CountsMap>(COUNTS_KEY);
+  return m[storyId] ?? null;
+}
+
 /**
  * Record a dummy vote. Returns the new credibility/stage, or the existing
  * stored values if this profile has already voted on this story (the
@@ -102,6 +113,10 @@ export function recordVote(args: {
   weight: number;
   baseCredibility: number;
   baseStage: ConsensusStage;
+  /** Pristine per-vote-type counts the article carried before any dummy
+   *  session touched it. Used only on the FIRST vote per story to seed
+   *  the store; ignored on every subsequent call. */
+  baseCounts?: VoteCounts;
 }): { credibility: number; stage: ConsensusStage; locked: boolean } {
   const { storyId, profileId, vote, weight, baseCredibility, baseStage } = args;
 
@@ -121,10 +136,27 @@ export function recordVote(args: {
   const newCred = nextCredibility(current.credibility, vote, weight);
   const newStage = nextStage(current.stage, newCred);
 
+  const counts = readMap<CountsMap>(COUNTS_KEY);
+  // Absolute (not delta) — seeded from args.baseCounts on first vote, +1
+  // per subsequent vote. Stored absolute lets overlayVoteCounts SET (not
+  // add), which stays idempotent even if the row has already been patched.
+  const seed =
+    counts[storyId] ?? {
+      real: args.baseCounts?.real ?? 0,
+      hoax: args.baseCounts?.hoax ?? 0,
+      needs_context: args.baseCounts?.needs_context ?? 0,
+    };
+  counts[storyId] = {
+    real: seed.real + (vote === 'real' ? 1 : 0),
+    hoax: seed.hoax + (vote === 'hoax' ? 1 : 0),
+    needs_context: seed.needs_context + (vote === 'needs_context' ? 1 : 0),
+  };
+
   votes[storyId] = { ...(votes[storyId] ?? {}), [profileId]: vote };
   creds[storyId] = { credibility: newCred, stage: newStage };
   writeMap(VOTES_KEY, votes);
   writeMap(CRED_KEY, creds);
+  writeMap(COUNTS_KEY, counts);
 
   return { credibility: newCred, stage: newStage, locked: false };
 }
@@ -145,5 +177,24 @@ export function overlayCredibility<T>(
     const override = m[id];
     if (!override) return row;
     return patch(row, override.credibility, override.stage);
+  });
+}
+
+/** Overlay the stored per-vote-type counts onto a list of rows. The store
+ *  tracks ABSOLUTE counts (seeded from the row's pristine counts on the
+ *  first vote per story, +1 per subsequent vote), so overlay SETS rather
+ *  than adds — safe to re-apply any number of times. Rows without stored
+ *  counts are returned unchanged. */
+export function overlayVoteCounts<T>(
+  rows: T[],
+  pick: (row: T) => { id: string },
+  patch: (row: T, counts: VoteCounts) => T,
+): T[] {
+  const m = readMap<CountsMap>(COUNTS_KEY);
+  if (Object.keys(m).length === 0) return rows;
+  return rows.map((row) => {
+    const stored = m[pick(row).id];
+    if (!stored) return row;
+    return patch(row, stored);
   });
 }
