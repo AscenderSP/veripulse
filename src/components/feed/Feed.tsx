@@ -51,12 +51,22 @@ const VOTE_ERRORS: Record<string, string> = {
 // Global in-memory cache for instant 0ms tab switching
 const feedScopeCache = new Map<string, Story[]>();
 
+// Live Circle shows only non-quarantined stories; Quarantine Vault shows
+// only quarantined. Must run AFTER the credibility overlay — a vote that
+// drops cred below 30 flips stage to 'quarantined' at overlay time and
+// should route the row straight to the vault, not linger in Live Circle.
+function routeByStage(rows: Story[], vault: boolean): Story[] {
+  return rows.filter((s) =>
+    vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined',
+  );
+}
+
 function getInitialScopedStories(scope: string, vault: boolean, lat: number | null, lng: number | null): Story[] {
   const cacheKey = `${vault ? 'vault' : scope}:${lat ?? ''}:${lng ?? ''}`;
   if (feedScopeCache.has(cacheKey) && feedScopeCache.get(cacheKey)!.length > 0) {
     return feedScopeCache.get(cacheKey)!;
   }
-  return DEMO_STORIES.filter((s) => {
+  const raw = DEMO_STORIES.filter((s) => {
     if (!vault && isNewsExpired(s.created_at)) return false;
     return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
   }).filter(
@@ -65,6 +75,14 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
       lat === null ||
       (s.lat !== null && s.lng !== null && distanceKm(lat, lng!, s.lat, s.lng) <= 10),
   );
+  // Apply the demo-vote overlay BEFORE routing so a cached cred shift that
+  // flipped the stage is honored on first paint, not after the first load.
+  const overlaid = overlayDemoCredibility(
+    raw,
+    (s) => ({ id: s.id, credibility: s.credibility_score, stage: s.rollout_stage as ConsensusStage }),
+    (s, credibility, stage) => ({ ...s, credibility_score: credibility, rollout_stage: stage }),
+  );
+  return routeByStage(overlaid, vault);
 }
 
 export function Feed({
@@ -171,7 +189,7 @@ export function Feed({
           area.lat === null ||
           (s.lat !== null && s.lng !== null && distanceKm(area.lat, area.lng!, s.lat, s.lng) <= 10),
       );
-      const overlaid = applyOverlay(inScope);
+      const overlaid = routeByStage(applyOverlay(inScope), vault);
       setStories(overlaid);
       feedScopeCache.set(cacheKey, overlaid);
       setLoading(false);
@@ -188,7 +206,7 @@ export function Feed({
         p_limit: 50,
       });
       const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
-      const overlaid = applyOverlay(active);
+      const overlaid = routeByStage(applyOverlay(active), vault);
       setStories(overlaid);
       feedScopeCache.set(cacheKey, overlaid);
     } catch {
@@ -276,10 +294,13 @@ export function Feed({
     }
     const data = await res.json();
     setStories((list) => {
-      const updated = list.map((x) =>
-        x.id === story.id
-          ? { ...x, credibility_score: data.credibility, rollout_stage: data.stage }
-          : x,
+      const updated = routeByStage(
+        list.map((x) =>
+          x.id === story.id
+            ? { ...x, credibility_score: data.credibility, rollout_stage: data.stage }
+            : x,
+        ),
+        vault,
       );
       feedScopeCache.set(cacheKey, updated);
       return updated;
@@ -312,10 +333,13 @@ export function Feed({
     });
     demoVotes.current[story.id] = { vote, weight };
     setStories((list) => {
-      const updated = list.map((x) =>
-        x.id === story.id
-          ? { ...x, credibility_score: result.credibility, rollout_stage: result.stage }
-          : x,
+      const updated = routeByStage(
+        list.map((x) =>
+          x.id === story.id
+            ? { ...x, credibility_score: result.credibility, rollout_stage: result.stage }
+            : x,
+        ),
+        vault,
       );
       feedScopeCache.set(cacheKey, updated);
       return updated;

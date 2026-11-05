@@ -469,6 +469,12 @@ export function NewsHub() {
       if (isNewsExpired(article.publishedAt)) {
         return false;
       }
+      // Quarantined hoaxes belong in the Quarantine Vault, not the News
+      // Hub — a cred-score drop at overlay time that flips the stage
+      // routes the article straight out of this feed.
+      if (article.stage === 'quarantined') {
+        return false;
+      }
       if (selectedCategory !== 'all' && article.category !== selectedCategory) {
         return false;
       }

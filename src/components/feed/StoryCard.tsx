@@ -19,7 +19,7 @@ import {
 import type { Story, StoryStage, StoryTimelineNode, VoteAction } from '@/lib/types';
 import { useLang } from '@/hooks/useLang';
 import { useSession } from '@/hooks/useSession';
-import { getVote as getDemoVote } from '@/lib/demoVoteStore';
+import { getVote as getDemoVote, getVoteCounts as getDemoVoteCounts } from '@/lib/demoVoteStore';
 import { Badge, CredMeter, Card } from '@/components/ui/primitives';
 import { stageMeta, timeAgo, cn } from '@/lib/utils';
 import { t } from '@/lib/translations';
@@ -49,7 +49,17 @@ export function StoryCard({
   const [stage, setStage] = useState<StoryStage>(story.rollout_stage);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [nodes, setNodes] = useState<StoryTimelineNode[] | null>(null);
+  const [voteTotal, setVoteTotal] = useState(0);
   const meta = stageMeta(stage);
+
+  // Dummy / preset sessions track voter counts in the demoVoteStore; a
+  // real Supabase session would see this value reset to 0 (server echo
+  // not surfaced on Story rows yet). Re-read whenever the profile or
+  // this story changes AND whenever this card just bumped a vote.
+  useEffect(() => {
+    const c = getDemoVoteCounts(story.id);
+    setVoteTotal(c ? c.real + c.hoax + c.needs_context : 0);
+  }, [story.id, profile?.id, voted]);
 
   // When the active profile changes (SwitchAccountPage, sign-in, initial
   // mount), restore this profile's locked vote from the shared demo
@@ -254,6 +264,9 @@ export function StoryCard({
             style={{ color: meta.color }}
           >
             {Math.round(cred)}%
+          </span>
+          <span className="shrink-0 font-mono text-[11px] tabular-nums text-content-muted">
+            · {voteTotal} {voteTotal === 1 ? 'vote' : 'votes'}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
