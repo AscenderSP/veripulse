@@ -22,7 +22,7 @@
  * in-memory path for that session.
  */
 
-import { nextCredibility, nextStage, type ConsensusVote, type ConsensusStage } from './consensus';
+import { nextCredibility, nextStage, type ConsensusVote, type ConsensusStage } from './consensus.ts';
 
 const VOTES_KEY = 'veripulse_demo_votes_v1';
 const CRED_KEY = 'veripulse_demo_credibility_v1';
