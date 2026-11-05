@@ -933,6 +933,11 @@ export const UI_STRINGS: Record<string, Record<Lang, string>> = {
     bn: 'ডিজিলকার / আধার দিয়ে যাচাই করুন',
     hi: 'डिजीलॉकर / आधार से सत्यापित करें',
   },
+  language: {
+    en: 'Language',
+    bn: 'ভাষা',
+    hi: 'भाषा',
+  },
 };
 
 /**
