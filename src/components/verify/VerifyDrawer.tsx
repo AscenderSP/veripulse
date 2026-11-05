@@ -23,11 +23,11 @@ export function VerifyDrawer({ open, onClose }: { open: boolean; onClose: () => 
   const [step, setStep] = useState<Step>('idle');
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { demo, user, setAuthOpen, refreshProfile } = useSession();
+  const { profile, setAuthOpen, refreshProfile } = useSession();
   useBackClose(open, onClose);
 
   async function run() {
-    if (!demo && !user) {
+    if (!profile) {
       onClose();
       setAuthOpen(true);
       return;

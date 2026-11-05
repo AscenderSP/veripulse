@@ -154,7 +154,7 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
     };
   }, [demo, user, loadLive]);
 
-  if (!demo && !user) {
+  if (!profile) {
     return (
       <Card className="p-6 text-center">
         <p className="text-sm text-content-secondary">Sign in to see your earnings and withdraw to UPI or Gift Cards.</p>
@@ -162,13 +162,6 @@ export function Wallet({ onVerify }: { onVerify: () => void }) {
           Sign in
         </button>
       </Card>
-    );
-  }
-  if (!profile) {
-    return (
-      <div className="flex justify-center py-16 text-content-muted">
-        <Loader2 className="animate-spin" />
-      </div>
     );
   }
 

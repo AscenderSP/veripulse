@@ -815,7 +815,7 @@ function SentinelDesk({ onVerify, onNavigate }: { onVerify: () => void; onNaviga
 
   useEffect(() => {
     if (!profile) return;
-    if (demo) {
+    if (demo || !user) {
       setRank(DEMO_LEADERBOARD.findIndex((u) => u.username === profile.username) + 1 || null);
       return;
     }
@@ -824,9 +824,9 @@ function SentinelDesk({ onVerify, onNavigate }: { onVerify: () => void; onNaviga
       .select('id', { count: 'exact', head: true })
       .gt('trust_score', profile.trust_score)
       .then(({ count }) => setRank((count ?? 0) + 1));
-  }, [demo, profile]);
+  }, [demo, user, profile]);
 
-  if (!demo && !user) {
+  if (!profile) {
     return (
       <Card className="p-6 text-center">
         <p className="text-sm text-content-secondary">Sign in to see your accuracy, rank and alerts.</p>

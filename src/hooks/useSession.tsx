@@ -80,9 +80,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     DEMO_NETWORK_USERS.filter((u) => u.isFollowing).map((u) => u.id),
   );
 
-  // Restore client-side saved profile and following IDs after hydration
+  // Restore client-side saved profile and following IDs on mount — works in
+  // BOTH demo and live mode. In live mode, this gives signInPreset-style
+  // dummy accounts (SwitchAccountPage, admin console sign-in) the same
+  // reload-survival as a real Supabase session. If a real Supabase session
+  // is present, the auth effect below will overwrite this with the live
+  // profile; if not, the preset stays until signOut.
   useEffect(() => {
-    if (!demo) return;
     try {
       if (typeof window !== 'undefined') {
         if (localStorage.getItem(STORAGE_KEY_LOGGED_OUT) === 'true') {
@@ -108,7 +112,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore localStorage parse errors
     }
-  }, [demo]);
+  }, []);
 
   const [contacts, setContacts] = useState<UserContact[]>(DEMO_PHONE_CONTACTS);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -147,12 +151,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     sb.auth.getUser().then(async ({ data }) => {
       setUser(data.user);
       if (data.user) await loadProfile(data.user.id);
+      // No Supabase user? Leave whatever the localStorage effect restored
+      // in place (a preset dummy profile for end-to-end testing). The
+      // signOut explicit path is what sets LOGGED_OUT and clears it.
       setReady(true);
     });
-    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) loadProfile(session.user.id);
-      else {
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        // Only wipe profile + notifications on an explicit sign-out, not
+        // on initial "no session" events — otherwise preset dummies get
+        // clobbered immediately after the localStorage restore.
         setProfile(null);
         setNotifications([]);
       }
@@ -565,19 +576,19 @@ export function useSession(): SessionCtx {
  * sign-in sheet instead of running it when signed out.
  */
 export function useRequireAuth() {
-  const { demo, user, profile, setAuthOpen } = useSession();
+  const { profile, setAuthOpen } = useSession();
   return useCallback(
     <T,>(fn: () => T): T | undefined => {
-      if (!demo && !user) {
-        setAuthOpen(true);
-        return undefined;
-      }
-      if (demo && !profile) {
+      // Unified gate: a profile means the user is logged in — whether that
+      // profile came from a Supabase JWT session or from signInPreset (demo
+      // / SwitchAccountPage / admin console). Server-side RPCs still enforce
+      // auth.uid() independently, so this change only affects UI visibility.
+      if (!profile) {
         setAuthOpen(true);
         return undefined;
       }
       return fn();
     },
-    [demo, user, profile, setAuthOpen],
+    [profile, setAuthOpen],
   );
 }
