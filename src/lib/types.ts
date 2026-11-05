@@ -118,6 +118,8 @@ export interface Profile {
   journalist_employer?: string;
   auth_provider?: AuthProvider;
   is_admin?: boolean;
+  /** Early-access flag — gates Product Hub, Cinema Sentinel, Resale Passport. */
+  has_early_access?: boolean;
   is_suspended?: boolean;
   suspended_until?: string | null;
   suspension_reason?: string;

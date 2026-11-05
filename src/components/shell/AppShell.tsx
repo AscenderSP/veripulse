@@ -39,6 +39,7 @@ import { AuthSheet } from './AuthSheet';
 import { ReviewPrompt } from './ReviewPrompt';
 import { PostFab, DISPATCH_SIGNAL_KEY, BOUNTY_SIGNAL_KEY } from './PostFab';
 import { GLOBAL_AREA, type Area } from './AreaSwitcher';
+import { EarlyAccessTeaser } from './EarlyAccessTeaser';
 // Feed is the default landing section, so it stays in the initial bundle.
 import { Feed } from '@/components/feed/Feed';
 import { Card } from '@/components/ui/primitives';
@@ -272,6 +273,9 @@ export function AppShell() {
                 active={section === n.id}
                 onClick={() => switchSection(n.id)}
                 badge={n.id === 'vault' ? vaultCount : undefined}
+                beta={
+                  EARLY_ACCESS_SECTIONS.includes(n.id) && !profile?.has_early_access
+                }
               />
             );
           })}
@@ -394,11 +398,11 @@ export function AppShell() {
           {section === 'feed' && <Feed area={area} onAreaChange={setArea} />}
           {section === 'news' && <NewsHub />}
           {section === 'vault' && <Feed vault area={GLOBAL_AREA} />}
-          {section === 'compare' && <ProductMatrix />}
+          {section === 'compare' && (profile?.has_early_access ? <ProductMatrix /> : <EarlyAccessTeaser section="compare" />)}
           {section === 'earn' && <EarnHub onVerify={() => setVerifyOpen(true)} />}
-          {section === 'cinema' && <CinemaReviews />}
+          {section === 'cinema' && (profile?.has_early_access ? <CinemaReviews /> : <EarlyAccessTeaser section="cinema" />)}
           {section === 'scanner' && <FactCheckScanner />}
-          {section === 'passport' && <OwnershipPassportView />}
+          {section === 'passport' && (profile?.has_early_access ? <OwnershipPassportView /> : <EarlyAccessTeaser section="passport" />)}
           {section === 'wallet' && <Wallet onVerify={() => setVerifyOpen(true)} />}
           {section === 'sentinel' && <SentinelDesk onVerify={() => setVerifyOpen(true)} onNavigate={switchSection} />}
           {section === 'profile' && (
@@ -624,6 +628,7 @@ function NavItem({
   active,
   onClick,
   badge,
+  beta,
   color,
 }: {
   label: string;
@@ -631,6 +636,7 @@ function NavItem({
   active: boolean;
   onClick: () => void;
   badge?: number;
+  beta?: boolean;
   color: string;
 }) {
   return (
@@ -650,6 +656,11 @@ function NavItem({
         {icon}
       </span>
       <span className="flex-1 text-left">{label}</span>
+      {beta ? (
+        <span className="rounded-pill bg-brand-amber/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-brand-amber">
+          Beta
+        </span>
+      ) : null}
       {badge ? (
         <span className="rounded-pill bg-[rgba(251,113,133,0.15)] px-2 py-0.5 font-mono text-[10px] font-bold text-brand-rose animate-scale-in">
           {badge}
@@ -658,6 +669,8 @@ function NavItem({
     </button>
   );
 }
+
+const EARLY_ACCESS_SECTIONS: readonly Section[] = ['compare', 'cinema', 'passport'];
 
 function SectionTitle({ section, lang = 'en' }: { section: Section; lang?: import('@/lib/types').Lang }) {
   const navKey = `nav_${section}` as keyof typeof UI_STRINGS;

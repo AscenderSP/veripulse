@@ -103,6 +103,52 @@ export const DEMO_ADMIN_PROFILE: Profile = {
   updated_at: new Date().toISOString(),
 };
 
+// ── Early-Access account ──────────────────────────────────────────────
+// Credentials for the Beta Insider account that unlocks Product Hub,
+// Cinema Sentinel and Resale Passport while the rest of the browser
+// sees the teaser. Shown openly on the teaser's sign-in form — this is
+// a demo, not a real secret. A real build would route this through
+// Supabase email+password auth and set has_early_access server side.
+export const EARLY_ACCESS_EMAIL = 'insider@veripulse.in';
+export const EARLY_ACCESS_PASSWORD = 'vp-early-2026';
+
+export const EARLY_ACCESS_PROFILE: Profile = {
+  id: 'user-early-access',
+  username: 'beta_insider',
+  full_name: 'Beta Insider',
+  avatar_url:
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+  bio: 'Early-access member · unlocks Product Hub, Cinema Sentinel, and Resale Passport ahead of public rollout.',
+  city: 'India',
+  trust_score: 80,
+  tier: 'validator_t2',
+  badge: 'Beta Insider',
+  correct_votes: 12,
+  total_votes: 14,
+  wallet_balance_inr: 0,
+  upi_id: null,
+  home_lat: null,
+  home_lng: null,
+  preferred_lang: 'en',
+  is_id_verified: true,
+  is_ownership_verified: false,
+  is_sentinel_verified: false,
+  is_journalist_verified: false,
+  is_press_pass_paid: false,
+  journalist_verification_status: 'none',
+  account_type: 'reader',
+  subscription_tier: 'free',
+  daily_post_limit: 10,
+  posts_today: 0,
+  auth_provider: 'email',
+  is_admin: false,
+  has_early_access: true,
+  followers_count: 3,
+  following_count: 8,
+  created_at: new Date(Date.now() - 86400000 * 14).toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 export const DEMO_PRESET_PROFILES: Profile[] = [
   DEMO_PROFILE,
   {

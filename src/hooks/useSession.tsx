@@ -9,6 +9,9 @@ import {
   DEMO_NETWORK_USERS,
   DEMO_ADMIN_PROFILE,
   DEMO_ADMIN_EMAIL,
+  EARLY_ACCESS_EMAIL,
+  EARLY_ACCESS_PASSWORD,
+  EARLY_ACCESS_PROFILE,
   isSupabaseConfigured,
 } from '@/lib/demoData';
 import { recordActivity } from '@/lib/demoActivityStore';
@@ -42,6 +45,7 @@ interface SessionCtx {
   signInWithGoogle: () => Promise<{ error?: string }>;
   signInWithDigiLocker: (aadhaarLast4?: string) => Promise<{ error?: string }>;
   signInWithOtpMock: (identifier: string, code: string) => Promise<{ error?: string }>;
+  signInEarlyAccess: (email: string, password: string) => Promise<{ error?: string }>;
   signInPreset: (preset: Profile) => void;
   signUp: (input: SignUpInput) => Promise<{ error?: string }>;
   requestJournalistVerification: (input: JournalistVerificationInput) => Promise<{ error?: string }>;
@@ -310,6 +314,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         ...accountTypeDefaults('citizen_reporter'),
       };
       persistProfile(prof);
+      return {};
+    },
+
+    async signInEarlyAccess(email, password) {
+      // Dedicated gate for the Beta Insider account that unlocks
+      // Product Hub, Cinema Sentinel, and Resale Passport. The check
+      // is client-side on purpose in demo mode — a real build would
+      // hand this to Supabase email+password auth and set
+      // has_early_access from a server-side row. Credentials live in
+      // EARLY_ACCESS_EMAIL / EARLY_ACCESS_PASSWORD and are shown on
+      // the teaser screen so a first-time visitor can self-serve.
+      const clean = email.trim().toLowerCase();
+      if (clean !== EARLY_ACCESS_EMAIL.toLowerCase() || password !== EARLY_ACCESS_PASSWORD) {
+        return { error: 'Email or password is incorrect.' };
+      }
+      persistProfile({ ...EARLY_ACCESS_PROFILE });
       return {};
     },
 
