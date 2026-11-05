@@ -11,6 +11,7 @@ import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useLang } from '@/hooks/useLang';
 import { t } from '@/lib/translations';
+import { addDemoStory } from '@/lib/demoStoryStore';
 
 // Server returns these error codes with a `message` field; fall back to this
 // table when the server didn't supply one so the user sees something useful.
@@ -46,7 +47,7 @@ export function Composer({
   onSubmitted?: () => void;
   autoCapture?: boolean;
 }) {
-  const { user } = useSession();
+  const { user, profile } = useSession();
   const { lang } = useLang();
   const requireAuth = useRequireAuth();
   const { requireHuman } = useCaptchaGate();
@@ -95,9 +96,9 @@ export function Composer({
       setMsg('Add more detail before posting (at least 20 characters).');
       return;
     }
-    // Make the auth gate loud: if the user isn't signed in, say so instead of
-    // silently opening the sheet and letting the Post button look dead.
-    if (isSupabaseConfigured() && !user) {
+    // Make the auth gate loud: if no one is signed in (not even a preset
+    // dummy), say so instead of silently opening the sheet.
+    if (!profile) {
       setMsg('Please sign in to publish your report.');
       requireAuth(() => undefined); // opens the sign-in sheet
       return;
@@ -110,9 +111,20 @@ export function Composer({
     setBusy(true);
     setMsg(null);
     try {
-      if (!isSupabaseConfigured()) {
-        await new Promise((r) => setTimeout(r, 900));
-        setMsg('Demo mode — connect Supabase to publish. Report looks good!');
+      // Dummy / preset-dummy profiles have no Supabase JWT, so the
+      // /api/stories/submit route would reject with AUTH_REQUIRED. Save
+      // the post locally through the shared demoStoryStore instead so the
+      // card lands on Live Circle and persists across refresh.
+      if (!isSupabaseConfigured() || !user) {
+        addDemoStory({
+          authorId: profile.id,
+          text,
+          locationName: place.trim() || (media?.lat ? 'Pinned location' : 'Unknown'),
+          lat: media?.lat ?? null,
+          lng: media?.lng ?? null,
+          mediaUrl: media?.dataUrl ?? null,
+        });
+        setMsg('Published to Live Circle (local preview — a real session persists to the Sentinel ring).');
       } else {
         let mediaUrl: string | null = null;
         try {

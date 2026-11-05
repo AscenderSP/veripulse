@@ -30,6 +30,7 @@ import {
   priorDemoVoteCount,
   recordVote as recordDemoVote,
 } from '@/lib/demoVoteStore';
+import { getDemoStories } from '@/lib/demoStoryStore';
 import { cn, distanceKm } from '@/lib/utils';
 import { useSession, useRequireAuth } from '@/hooks/useSession';
 import { useLang } from '@/hooks/useLang';
@@ -66,7 +67,10 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
   if (feedScopeCache.has(cacheKey) && feedScopeCache.get(cacheKey)!.length > 0) {
     return feedScopeCache.get(cacheKey)!;
   }
-  const raw = DEMO_STORIES.filter((s) => {
+  // Prepend any dummy-posted reports so a preset-dummy author sees their
+  // own submission at the top of Live Circle; vault excludes them since
+  // fresh posts start in a review ring, not quarantined.
+  const raw = [...(vault ? [] : getDemoStories()), ...DEMO_STORIES].filter((s) => {
     if (!vault && isNewsExpired(s.created_at)) return false;
     return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
   }).filter(
@@ -179,7 +183,7 @@ export function Feed({
       );
 
     if (!isSupabaseConfigured()) {
-      const inScope = DEMO_STORIES.filter((s) => {
+      const inScope = [...(vault ? [] : getDemoStories()), ...DEMO_STORIES].filter((s) => {
         // Stories older than 12 hours expire from active feeds (unless vault)
         if (!vault && isNewsExpired(s.created_at)) return false;
         return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
@@ -206,7 +210,10 @@ export function Feed({
         p_limit: 50,
       });
       const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
-      const overlaid = routeByStage(applyOverlay(active), vault);
+      // Prepend dummy-posted reports so a preset-dummy author sees their
+      // own submission even in live Supabase mode.
+      const combined = [...(vault ? [] : getDemoStories()), ...active];
+      const overlaid = routeByStage(applyOverlay(combined), vault);
       setStories(overlaid);
       feedScopeCache.set(cacheKey, overlaid);
     } catch {
