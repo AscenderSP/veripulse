@@ -38,11 +38,11 @@ export function Badge({
 
 export function CredMeter({ value }: { value: number }) {
   const color =
-    value >= 80
-      ? 'var(--brand-emerald)'
-      : value >= 35
+    value <= 30
+      ? 'var(--brand-rose)'
+      : value < 50
         ? 'var(--brand-amber)'
-        : 'var(--brand-rose)';
+        : 'var(--brand-emerald)';
   return (
     <div className="cred-meter" role="meter" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
       <span style={{ width: `${Math.max(2, Math.min(100, value))}%`, background: color, color }} />
