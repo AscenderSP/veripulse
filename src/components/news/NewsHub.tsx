@@ -65,6 +65,7 @@ import { getReferenceImage, isNewsExpired, isStockImage, NEWS_EXPIRY_HOURS } fro
 import { useRelatedImage } from '@/hooks/useRelatedImage';
 import { useListboxKeys } from '@/hooks/useListboxKeys';
 import { onRefresh } from '@/lib/refreshBus';
+import { readSnapshot, writeSnapshot } from '@/lib/liveCache';
 import { EmptyState } from '@/components/ui/Skeleton';
 import { useCaptchaGate } from '@/hooks/useCaptchaGate';
 import { useBackClose } from '@/hooks/useBackClose';
@@ -277,8 +278,15 @@ export function NewsHub() {
   // credibility overlay is applied on first read so a freshly refreshed
   // page shows every dummy vote that landed before the reload.
   const [articles, setArticles] = useState<NewsArticle[]>(() => {
+    // Order of preference on first paint:
+    //   1. The last live snapshot from the previous session (localStorage) —
+    //      so a refresh shows what was on screen, not the baked-in demo list.
+    //   2. The in-memory cache from another mount in the same tab.
+    //   3. The baked-in DEMO_NEWS_ARTICLES as a true cold-start fallback.
+    const snapshot = readSnapshot<NewsArticle>('newshub');
     const base: NewsArticle[] =
-      (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) ||
+      snapshot ??
+      (typeof window !== 'undefined' && (window as any).__VERIPULSE_NEWS_CACHE__) ??
       DEMO_NEWS_ARTICLES;
     const withCred = overlayDemoCredibility(
       base,
@@ -328,6 +336,7 @@ export function NewsHub() {
             if (typeof window !== 'undefined') {
               (window as any).__VERIPULSE_NEWS_CACHE__ = merged;
             }
+            writeSnapshot('newshub', merged);
             return merged;
           });
         }
@@ -375,6 +384,7 @@ export function NewsHub() {
           if (typeof window !== 'undefined') {
             (window as any).__VERIPULSE_NEWS_CACHE__ = patched;
           }
+          writeSnapshot('newshub', patched);
           return patched;
         });
       })

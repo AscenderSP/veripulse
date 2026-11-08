@@ -41,6 +41,7 @@ import type { Area } from '@/components/shell/AreaSwitcher';
 import { GLOBAL_AREA } from '@/components/shell/AreaSwitcher';
 import { getCurrentCoords } from '@/lib/nativeHardware';
 import { onRefresh } from '@/lib/refreshBus';
+import { readSnapshot, writeSnapshot } from '@/lib/liveCache';
 import { SkeletonList, EmptyState } from '@/components/ui/Skeleton';
 
 const VOTE_ERRORS: Record<string, string> = {
@@ -52,6 +53,13 @@ const VOTE_ERRORS: Record<string, string> = {
 
 // Global in-memory cache for instant 0ms tab switching
 const feedScopeCache = new Map<string, Story[]>();
+
+// Mirror every in-memory cache update to localStorage so the next page
+// refresh paints the latest known stories instead of the DEMO fallback.
+function cacheScope(cacheKey: string, rows: Story[]): void {
+  feedScopeCache.set(cacheKey, rows);
+  writeSnapshot(`feed:${cacheKey}`, rows);
+}
 
 // Live Circle shows only non-quarantined stories; Quarantine Vault shows
 // only quarantined. Must run AFTER the credibility overlay — a vote that
@@ -67,6 +75,16 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
   const cacheKey = `${vault ? 'vault' : scope}:${lat ?? ''}:${lng ?? ''}`;
   if (feedScopeCache.has(cacheKey) && feedScopeCache.get(cacheKey)!.length > 0) {
     return feedScopeCache.get(cacheKey)!;
+  }
+  // Hydrate from the last live snapshot so a hard refresh paints the most
+  // recent feed instead of flashing the baked-in DEMO_STORIES fallback.
+  const snapshot = readSnapshot<Story>(`feed:${cacheKey}`);
+  if (snapshot && snapshot.length > 0) {
+    const stillFresh = vault ? snapshot : snapshot.filter((s) => !isNewsExpired(s.created_at));
+    if (stillFresh.length > 0) {
+      feedScopeCache.set(cacheKey, stillFresh);
+      return stillFresh;
+    }
   }
   // Prepend any dummy-posted reports so a preset-dummy author sees their
   // own submission at the top of Live Circle; vault excludes them since
@@ -196,7 +214,7 @@ export function Feed({
       );
       const overlaid = routeByStage(applyOverlay(inScope), vault);
       setStories(overlaid);
-      feedScopeCache.set(cacheKey, overlaid);
+      cacheScope(cacheKey, overlaid);
       setLoading(false);
       setIsRefreshing(false);
       return;
@@ -216,7 +234,7 @@ export function Feed({
       const combined = [...(vault ? [] : getDemoStories()), ...active];
       const overlaid = routeByStage(applyOverlay(combined), vault);
       setStories(overlaid);
-      feedScopeCache.set(cacheKey, overlaid);
+      cacheScope(cacheKey, overlaid);
     } catch {
       // Retain existing cached stories on network hiccup
     } finally {
@@ -256,7 +274,7 @@ export function Feed({
             const updated = list
               .map((x) => (x.id === s.id ? { ...x, ...s } : x))
               .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined'));
-            feedScopeCache.set(cacheKey, updated);
+            cacheScope(cacheKey, updated);
             return updated;
           });
         },
@@ -310,7 +328,7 @@ export function Feed({
         ),
         vault,
       );
-      feedScopeCache.set(cacheKey, updated);
+      cacheScope(cacheKey, updated);
       return updated;
     });
     return { credibility: data.credibility, stage: data.stage };
@@ -361,7 +379,7 @@ export function Feed({
         ),
         vault,
       );
-      feedScopeCache.set(cacheKey, updated);
+      cacheScope(cacheKey, updated);
       return updated;
     });
     return { credibility: result.credibility, stage: result.stage };
