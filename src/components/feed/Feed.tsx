@@ -86,20 +86,20 @@ function getInitialScopedStories(scope: string, vault: boolean, lat: number | nu
       return stillFresh;
     }
   }
-  // Prepend any dummy-posted reports so a preset-dummy author sees their
-  // own submission at the top of Live Circle; vault excludes them since
-  // fresh posts start in a review ring, not quarantined.
-  const raw = [...(vault ? [] : getDemoStories()), ...DEMO_STORIES].filter((s) => {
-    if (!vault && isNewsExpired(s.created_at)) return false;
-    return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
-  }).filter(
-    (s) =>
-      scope !== 'hyperlocal' ||
-      lat === null ||
-      (s.lat !== null && s.lng !== null && distanceKm(lat, lng!, s.lat, s.lng) <= 10),
-  );
-  // Apply the demo-vote overlay BEFORE routing so a cached cred shift that
-  // flipped the stage is honored on first paint, not after the first load.
+  // Include every candidate (baked-in demos + any dummy-posted reports)
+  // so a story hoax-voted into the vault is reachable regardless of where
+  // it was originally posted. Expiry trims only the non-vault surfaces —
+  // the vault retains expired rows so takedowns don't vanish on their own.
+  // The stage filter must run AFTER the credibility overlay, since a vote
+  // that drove cred < 30 only flips stage to 'quarantined' at overlay time.
+  const raw = [...getDemoStories(), ...DEMO_STORIES]
+    .filter((s) => vault || !isNewsExpired(s.created_at))
+    .filter(
+      (s) =>
+        scope !== 'hyperlocal' ||
+        lat === null ||
+        (s.lat !== null && s.lng !== null && distanceKm(lat, lng!, s.lat, s.lng) <= 10),
+    );
   const overlaid = overlayDemoCredibility(
     raw,
     (s) => ({ id: s.id, credibility: s.credibility_score, stage: s.rollout_stage as ConsensusStage }),
@@ -202,16 +202,18 @@ export function Feed({
       );
 
     if (!isSupabaseConfigured()) {
-      const inScope = [...(vault ? [] : getDemoStories()), ...DEMO_STORIES].filter((s) => {
-        // Stories older than 12 hours expire from active feeds (unless vault)
-        if (!vault && isNewsExpired(s.created_at)) return false;
-        return vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined';
-      }).filter(
-        (s) =>
-          scope !== 'hyperlocal' ||
-          area.lat === null ||
-          (s.lat !== null && s.lng !== null && distanceKm(area.lat, area.lng!, s.lat, s.lng) <= 10),
-      );
+      // Overlay-before-routing: a story hoax-voted below 30 only flips to
+      // 'quarantined' at overlay time, so routeByStage must run AFTER. The
+      // vault keeps dummy-posted reports too, in case they were voted down
+      // after posting.
+      const inScope = [...getDemoStories(), ...DEMO_STORIES]
+        .filter((s) => vault || !isNewsExpired(s.created_at))
+        .filter(
+          (s) =>
+            scope !== 'hyperlocal' ||
+            area.lat === null ||
+            (s.lat !== null && s.lng !== null && distanceKm(area.lat, area.lng!, s.lat, s.lng) <= 10),
+        );
       const overlaid = routeByStage(applyOverlay(inScope), vault);
       setStories(overlaid);
       cacheScope(cacheKey, overlaid);
@@ -229,9 +231,10 @@ export function Feed({
         p_limit: 50,
       });
       const active = ((data as Story[]) ?? []).filter((s) => vault || !isNewsExpired(s.created_at));
-      // Prepend dummy-posted reports so a preset-dummy author sees their
-      // own submission even in live Supabase mode.
-      const combined = [...(vault ? [] : getDemoStories()), ...active];
+      // Mix in dummy-posted reports on BOTH surfaces — Live Circle to show
+      // a preset-dummy author their own submission, Vault so a dummy-posted
+      // story that got hoax-voted below 30 is still reachable there.
+      const combined = [...getDemoStories(), ...active];
       const overlaid = routeByStage(applyOverlay(combined), vault);
       setStories(overlaid);
       cacheScope(cacheKey, overlaid);
