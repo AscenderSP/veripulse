@@ -61,19 +61,18 @@ function cacheScope(cacheKey: string, rows: Story[]): void {
   writeSnapshot(`feed:${cacheKey}`, rows);
 }
 
-// Live Circle = everything that hasn't been consensus-quarantined.
-// Quarantine Vault = anything that needs community review — fully
-// quarantined OR any story whose credibility has slipped below 50
-// (the amber / rose threshold on CredMeter). This lets a few hoax
-// flags surface a story in the vault for review long before the
-// vote math drops its credibility past the hard 30 cutoff.
+// A story is "under review" when it's either fully consensus-quarantined
+// OR its credibility has slipped below 50 (the amber/rose threshold on
+// CredMeter). Under-review stories live EXCLUSIVELY in the Quarantine
+// Vault — Live Circle hides them. A hoax flag that nudges a 60%-cred
+// wire story to 48% therefore moves it out of the main feed and into
+// the vault in one step, matching what "moved to quarantine" reads as.
 const VAULT_REVIEW_BELOW = 50;
+function isUnderReview(s: Story): boolean {
+  return s.rollout_stage === 'quarantined' || (s.credibility_score ?? 100) < VAULT_REVIEW_BELOW;
+}
 function routeByStage(rows: Story[], vault: boolean): Story[] {
-  return rows.filter((s) =>
-    vault
-      ? s.rollout_stage === 'quarantined' || (s.credibility_score ?? 100) < VAULT_REVIEW_BELOW
-      : s.rollout_stage !== 'quarantined',
-  );
+  return rows.filter((s) => (vault ? isUnderReview(s) : !isUnderReview(s)));
 }
 
 function getInitialScopedStories(scope: string, vault: boolean, lat: number | null, lng: number | null): Story[] {
