@@ -61,13 +61,18 @@ function cacheScope(cacheKey: string, rows: Story[]): void {
   writeSnapshot(`feed:${cacheKey}`, rows);
 }
 
-// Live Circle shows only non-quarantined stories; Quarantine Vault shows
-// only quarantined. Must run AFTER the credibility overlay — a vote that
-// drops cred below 30 flips stage to 'quarantined' at overlay time and
-// should route the row straight to the vault, not linger in Live Circle.
+// Live Circle = everything that hasn't been consensus-quarantined.
+// Quarantine Vault = anything that needs community review — fully
+// quarantined OR any story whose credibility has slipped below 50
+// (the amber / rose threshold on CredMeter). This lets a few hoax
+// flags surface a story in the vault for review long before the
+// vote math drops its credibility past the hard 30 cutoff.
+const VAULT_REVIEW_BELOW = 50;
 function routeByStage(rows: Story[], vault: boolean): Story[] {
   return rows.filter((s) =>
-    vault ? s.rollout_stage === 'quarantined' : s.rollout_stage !== 'quarantined',
+    vault
+      ? s.rollout_stage === 'quarantined' || (s.credibility_score ?? 100) < VAULT_REVIEW_BELOW
+      : s.rollout_stage !== 'quarantined',
   );
 }
 
@@ -274,9 +279,8 @@ export function Feed({
         (payload) => {
           const s = payload.new as Story;
           setStories((list) => {
-            const updated = list
-              .map((x) => (x.id === s.id ? { ...x, ...s } : x))
-              .filter((x) => (vault ? x.rollout_stage === 'quarantined' : x.rollout_stage !== 'quarantined'));
+            const patched = list.map((x) => (x.id === s.id ? { ...x, ...s } : x));
+            const updated = routeByStage(patched, vault);
             cacheScope(cacheKey, updated);
             return updated;
           });
